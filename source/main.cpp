@@ -1,31 +1,47 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 
+#include "io/args.h"
+#include "io/reader.h"
 #include "lexer/token.h"
 #include "lexer/lexer.h"
-#include "lexer/lexer_error.h"
-#include "io/reader.h"
+#include "lexer/lexer_utils.h"
+#include "parser/ast.h"
+#include "parser/parser.h"
+#include "parser/parser_utils.h"
 #include "status.h"
 
 
-int main()
+int main(const int argc, const char** argv)
 {
-    LexerContext context = {};
-    OperationStatus status = createLexerContext(&context, "../data/test");
-    if (status != STATUS_OK) {
-        printf("Error during context creation: %d\n", status);
+    ParserContext context = {};
+    createParserContext(&context, argc, argv);
+    if (context.status != STATUS_OK) {
         return 1;
     }
 
-    runLexer(&context);
+    runLexer(&context.lexer_context);
 
-    for (size_t index = 0; index < context.tokens_array.count; index++) {
-        Token token = context.tokens_array.tokens[index];
+    for (size_t index = 0; index < context.lexer_context.tokens_array.count; index++) {
+        Token token = context.lexer_context.tokens_array.tokens[index];
         printf("Index: %3zu, type: %3d, length: %3zu, line: %3zu, text: %.*s\n",
             index, token.type, token.length, token.line, (int)token.length, token.start);
     }
 
-    deleteLexerContext(&context);
+    //AstNode* ast_root = makeNode(&context, AST_NODE_OP_ADD, NULL, NULL);
+    //AST_DUMP(&context, ast_root, "Dump Test");
+    AstNode* ast_root = parseProgram(&context);
+
+    if (context.status == STATUS_OK) {
+//        writeAstTreeToFile(&context, ast_head);
+    }
+
+    OperationStatus status = context.status;
+
+    AST_DUMP(&context, ast_root, "In main");
+    deleteSubtree(ast_root);
+    deleteParserContext(&context);
 
     printf("Enum status code before end of program: %d\n", status);
     if (status == STATUS_OK) {

@@ -20,10 +20,14 @@ FLAGS = -ggdb3 -std=c++17 -O0 \
 
 OBJDIR = obj
 SRCDIR = ../source
-OUTPUT_NAME = lexer
+OUTPUT_NAME = front
 
 
-FILES = $(OBJDIR)/main.o $(OBJDIR)/io/reader.o $(OBJDIR)/lexer/lexer.o $(OBJDIR)/lexer/lexer_error.o
+FILES = $(OBJDIR)/main.o $(OBJDIR)/io/reader.o $(OBJDIR)/lexer/lexer.o $(OBJDIR)/lexer/lexer_utils.o \
+	$(OBJDIR)/parser/id_table.o $(OBJDIR)/parser/parser_utils.o $(OBJDIR)/parser/parser.o \
+	$(OBJDIR)/lexer/token_handlers.o $(OBJDIR)/ast_dump/ast_visualizer.o $(OBJDIR)/ast_dump/html_generator.o \
+	$(OBJDIR)/io/args.o
+
 FLAGS += -I../include
 
 
@@ -34,8 +38,7 @@ clean:
 	@rm $(OUTPUT_NAME)
 
 
-run: FLAGS += -DDEBUG
-run: $(FILES) $(DEBUG_FILES) | $(OBJDIR)
+run: $(FILES) | $(OBJDIR)
 	@g++ $(FILES) $(FLAGS) -o $(OUTPUT_NAME)
 
 
@@ -51,4 +54,13 @@ $(OBJDIR)/io/%.o: $(SRCDIR)/io/%.cpp
 
 $(OBJDIR)/lexer/%.o: $(SRCDIR)/lexer/%.cpp
 	@mkdir -p $(OBJDIR)/lexer
+	@g++ -c $< $(FLAGS) -o $@
+
+
+$(OBJDIR)/parser/%.o: $(SRCDIR)/parser/%.cpp
+	@mkdir -p $(OBJDIR)/parser
+	@g++ -c $< $(FLAGS) -o $@
+
+$(OBJDIR)/ast_dump/%.o: $(SRCDIR)/ast_dump/%.cpp
+	@mkdir -p $(OBJDIR)/ast_dump
 	@g++ -c $< $(FLAGS) -o $@

@@ -6,12 +6,6 @@
 #include "status.h"
 
 
-OperationStatus createLexerContext(LexerContext* context, const char* filename);
-
-
-void deleteLexerContext(LexerContext* context);
-
-
 void runLexer(LexerContext* context);
 
 

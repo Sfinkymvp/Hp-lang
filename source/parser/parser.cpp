@@ -2,382 +2,286 @@
 #include <assert.h>
 
 #include "parser/parser.h"
-#include "parser/parser_error.h"
+#include "parser/id_table.h"
+#include "parser/ast.h"
+#include "parser/parser_utils.h"
 #include "status.h"
 
 
+#define CHECK_OR_FREE(context, action)                \
+    do {                                              \
+        if ((context)->status != STATUS_OK) {         \
+            action;                                   \
+            return NULL;                              \
+        }                                             \
+    } while (0)
+
+
+static AstNode* parseStatement(ParserContext* context);
+static AstNode* parseScope(ParserContext* context);
+static AstNode* parseCycle(ParserContext* context);
+static AstNode* parseIf(ParserContext* context);
+static AstNode* parseDeclaration(ParserContext* context);
+static AstNode* parseAssignment(ParserContext* context);
+static AstNode* parseCall(ParserContext* context);
+static AstNode* parseFunction(ParserContext* context);
+static AstNode* parseExpression(ParserContext* context);
+static AstNode* parseTerm(ParserContext* context);
+static AstNode* parseFactor(ParserContext* context);
+static AstNode* parseIdentifier(ParserContext* context);
+static AstNode* parseNumber(ParserContext* context);
+
+static int stringToInt(const char* string, size_t len);
+static void expect(ParserContext* context, TokenType expected_type);
 static TokenType getCurrentTokenType(ParserContext* context);
 static TokenType getNextTokenType(ParserContext* context);
 
 
-OperationStatus parseProgram(ParserContext* context, AstNode** result_node)
+AstNode* parseProgram(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
     AstNode* head = NULL;
-    AstNode* current_node = NULL;
-    OperationStatus status = STATUS_OK;
+    AstNode* current = NULL; 
 
     while (getCurrentTokenType(context) != TOKEN_EOF) {
-        AstNode* statement_node = NULL;
-        status = parseStatement(context, &statement_node);
-        if (status != STATUS_OK) {
-            if (head) {
-                deleteSubtree(head);
-            }
-            return status;
-        }
+        AstNode* statement = parseStatement(context);
+        CHECK_OR_FREE(context, deleteSubtree(head));
 
-        if (getCurrentTokenType(context) == TOKEN_SEMICOLON) {
-            context->current_token++;
+        expect(context, TOKEN_SEMICOLON);
+        CHECK_OR_FREE(context, {deleteSubtree(head); deleteSubtree(statement);});
+
+        AstNode* semicolon = makeNode(context, AST_NODE_SEMICOLON, statement, NULL);
+        CHECK_OR_FREE(context, {deleteSubtree(head); deleteSubtree(statement);});
+        
+        if (!head) {
+            head = semicolon;
         } else {
-            deleteSubtree(statement_node);
-            deleteSubtree(head);
-            return STATUS_SYNTAX_ERROR;
+            current->right = semicolon;
+            semicolon->parent = current;
         }
 
-        AstNode* semicolon_node = NULL;
-        status = makeNode(&semicolon_node, AST_NODE_SEMICOLON, statement_node, NULL);
-        if (status != STATUS_OK) {
-            deleteSubtree(statement_node);
-            deleteSubtree(head);
-            return status;
-        }
-
-        if (head == NULL) {
-            head = semicolon_node;
-        } else {
-            current_node->right = semicolon_node;
-            semicolon_node->parent = current_node;
-        }
-
-        current_node = semicolon_node;
+        current = semicolon;
     }
 
-    *result_node = head;
-    return STATUS_OK;
+    if (head) {
+        AST_DUMP(context, head, "in the parseProgram function loop. Before parsing the Statement");
+    }
+    return head;
 }
 
 
-OperationStatus parseStatement(ParserContext* context, AstNode** result_node)
+static AstNode* parseStatement(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context); 
+
+    RETURN_IF_STATUS_NOT_OK(context);
 
     TokenType current_type = getCurrentTokenType(context);
-    OperationStatus status = STATUS_OK;
-
     if (current_type == TOKEN_IDENTIFIER) {
         TokenType next_type = getNextTokenType(context);
         
         if (next_type == TOKEN_OP_DECLARATION) {
-            status = parseDeclaration(context, result_node);
+            return parseDeclaration(context);
         } else if (next_type == TOKEN_OP_ASSIGN) {
-            status = parseAssignment(context, result_node);
+            return parseAssignment(context);
         } else if (next_type == TOKEN_LEFT_PAREN) {
-            status = parseCall(context, result_node);
+            return parseCall(context);
         } else {
-            reportParserError();
-            status = TOKEN_SYNTAX_ERROR;
+            reportParserError(context, TOKEN_UNKNOWN, 
+                "A declaration, assignment, or left parenthesis operator was expected");
+            context->status = STATUS_SYNTAX_ERROR;
         }
     } else if (current_type == TOKEN_LEFT_BRACE) {
-        status = parseScope(context, result_node);
+        return parseScope(context);
     } else if (current_type == TOKEN_KEYWORD_IF) {
-        status = parseIf(context, result_node);
+        return parseIf(context);
     } else if (current_type == TOKEN_KEYWORD_CYCLE) {
-        status = parseCycle(context, result_node);
+        return parseCycle(context);
     } else if (current_type == TOKEN_KEYWORD_FUNC) {
-        status = parseFunction(context, result_node);
+        return parseFunction(context);
     } else {
-        reportParserError();
-        status = STATUS_SYNTAX_ERROR;
+        reportParserError(context, TOKEN_UNKNOWN,
+            "An unexpected token was received");
+        context->status = STATUS_SYNTAX_ERROR;
     }
 
-    return status;
+    return NULL;
 }
 
 
-OperationStatus parseScope(ParserContext* context, AstNode** result_node)
+static AstNode* parseScope(ParserContext* context) 
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
+
+    RETURN_IF_STATUS_NOT_OK(context);
 
     AstNode* head = NULL;
-    AstNode* current_node = NULL;
-    OperationStatus status = STATUS_OK;
+    AstNode* current = NULL;
 
-    if (getCurrentTokenType(context) != TOKEN_LEFT_BRACE) {
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    expect(context, TOKEN_LEFT_BRACE);
+    CHECK_OR_FREE(context, {});
 
-    TokenType current_token_type = getCurrentTokenType(context);
-    while (current_token_type != TOKEN_RIGHT_BRACE &&
-           current_token_type != TOKEN_EOF) {
-        AstNode* statement_node = NULL;
-        status = parseStatement(context, &statement_node);
-        if (status != STATUS_OK) {
-            if (head) {
-                deleteSubtree(head);
-            }
-            return status;
-        }
+    TokenType current_type = getCurrentTokenType(context);
+    while (current_type != TOKEN_RIGHT_BRACE && current_type != TOKEN_EOF) {
+        AstNode* statement = parseStatement(context);
+        CHECK_OR_FREE(context, deleteSubtree(head));
 
-        if (getCurrentTokenType(context) == TOKEN_SEMICOLON) {
-            context->current_token++;
+        expect(context, TOKEN_SEMICOLON);
+        CHECK_OR_FREE(context, deleteSubtree(statement));
+
+        AstNode* semicolon = makeNode(context, AST_NODE_SEMICOLON, statement, NULL);
+        CHECK_OR_FREE(context, {deleteSubtree(statement); deleteSubtree(head);});
+
+        if (!head) {
+            head = semicolon;
         } else {
-            deleteSubtree(statement_node);
-            deleteSubtree(head);
-            reportParserError();
-            return STATUS_SYNTAX_ERROR;
+            current->right = semicolon;
+            semicolon->parent = current;
         }
 
-        AstNode* semicolon_node = NULL;
-        status = makeNode(&semicolon_node, AST_NODE_SEMICOLON, statement_node, NULL);
-        if (status != STATUS_OK) {
-            deleteSubtree(statement_node);
-            deleteSubtree(head);
-            return status;
-        }
-
-        if (head == NULL) {
-            head = semicolon_node;
-        } else {
-            current_node->right = semicolon_node;
-            semicolon_node->parent = current_node;
-        }
-
-        current_node = semicolon_node;
-        current_token_type = getCurrentTokenType(context);
+        current = semicolon;
+        current_type = getCurrentTokenType(context);
     }
-    if (current_token_type != TOKEN_RIGHT_BRACE) {
-        deleteSubtree(head);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
 
-    }
-    context->current_token++;
+    expect(context, TOKEN_RIGHT_BRACE);
+    CHECK_OR_FREE(context, deleteSubtree(head));
 
-    *result_node = head;
-    return STATUS_OK;
+    return head;
 }
 
 
-OperationStatus parseCycle(ParserContext* context, AstNode** result_node)
+static AstNode* parseCycle(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
-    if (getCurrentTokenType(context) != TOKEN_KEYWORD_CYCLE) {
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    if (getCurrentTokenType(context) != TOKEN_LEFT_PAREN) {
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    expect(context, TOKEN_KEYWORD_CYCLE);
+    CHECK_OR_FREE(context, {});
 
+    expect(context, TOKEN_LEFT_PAREN);
+    CHECK_OR_FREE(context, {});
 
-    AstNode* expression_node = NULL;
-    OperationStatus status = parseExpression(context, &expression_node);
-    if (status != STATUS_OK) {
-        return status;
-    }
+    AstNode* expression = parseExpression(context);
+    CHECK_OR_FREE(context, {});
+    
+    expect(context, TOKEN_RIGHT_PAREN);
+    CHECK_OR_FREE(context, deleteSubtree(expression));
 
-    if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
-        deleteSubtree(expression_node);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    AstNode* scope = parseScope(context);
+    CHECK_OR_FREE(context, deleteSubtree(expression));
 
-    AstNode* scope_node = NULL;
-    status = parseScope(context, &scope_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(expression_node);
-    }
+    AstNode* cycle = makeNode(context, AST_NODE_CYCLE, expression, scope);
+    CHECK_OR_FREE(context, {deleteSubtree(expression); deleteSubtree(scope);});
 
-    AstNode* if_node = NULL;
-    status = makeNode(&if_node, AST_NODE_CYCLE, expression_node, scope_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(expression_node);
-        deleteSubtree(scope_node);
-        return status;
-    }
-
-    *result_node = if_node;
-    return STATUS_OK;
+    return cycle;
 }
 
 
-OperationStatus parseIf(ParserContext* context, AstNode** result_node)
+static AstNode* parseIf(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
-    if (getCurrentTokenType(context) != TOKEN_KEYWORD_IF) {
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    if (getCurrentTokenType(context) != TOKEN_LEFT_PAREN) {
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    expect(context, TOKEN_KEYWORD_IF);
+    CHECK_OR_FREE(context, {});
+
+    expect(context, TOKEN_LEFT_PAREN);
+    CHECK_OR_FREE(context, {});
+
+    AstNode* expression = parseExpression(context);
+    CHECK_OR_FREE(context, {});
+
+    expect(context, TOKEN_RIGHT_PAREN);
+    CHECK_OR_FREE(context, deleteSubtree(expression));
 
 
-    AstNode* expression_node = NULL;
-    OperationStatus status = parseExpression(context, &expression_node);
-    if (status != STATUS_OK) {
-        return status;
-    }
+    AstNode* scope = parseScope(context);
+    CHECK_OR_FREE(context, deleteSubtree(expression));
 
-    if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
-        deleteSubtree(expression_node);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    AstNode* if_node = makeNode(context, AST_NODE_IF, expression, scope);
+    CHECK_OR_FREE(context, {deleteSubtree(expression); deleteSubtree(scope);});
 
-    AstNode* scope_node = NULL;
-    status = parseScope(context, &scope_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(expression_node);
-    }
-
-    AstNode* if_node = NULL;
-    status = makeNode(&if_node, AST_NODE_IF, expression_node, scope_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(expression_node);
-        deleteSubtree(scope_node);
-        return status;
-    }
-
-    *result_node = if_node;
-    return STATUS_OK;
+    return if_node;
 }
 
 
-OperationStatus parseDeclaration(ParserContext* context, AstNode** result_node)
+static AstNode* parseDeclaration(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
-    AstNode* variable_node = NULL;
-    OperationStatus status = parseIdentifier(context, &variable_node);
-    if (status != STATUS_OK) {
-        return status;
-    }
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    if (getCurrentTokenType(context) != TOKEN_OP_DECLARATION) {
-        deleteSubtree(variable_node);
-        reportLexerError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    AstNode* variable = parseIdentifier(context);
+    CHECK_OR_FREE(context, {});
 
-    AstNode* expression_node = NULL;
-    status = parseExpression(context, &expression_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(variable_node);
-        return status;
-    }
+    expect(context, TOKEN_OP_DECLARATION);
+    CHECK_OR_FREE(context, deleteSubtree(variable));
 
-    AstNode* declaration_node = NULL;
-    status = makeNode(&declaration_node, AST_NODE_DECLARATION, variable_node, expression_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(variable_node);
-        deleteSubtree(expression_node);
-        return status;
-    }
+    AstNode* expression = parseExpression(context);
+    CHECK_OR_FREE(context, deleteSubtree(variable));
 
-    *result_node = declaration_node;
-    return STATUS_OK;
+    AstNode* declaration = makeNode(context, AST_NODE_DECLARATION, variable, expression);
+    CHECK_OR_FREE(context, {deleteSubtree(variable); deleteSubtree(expression);});
+
+    return declaration;
 }
 
 
-OperationStatus parseAssignment(ParserContext* context, AstNode** result_node)
+static AstNode* parseAssignment(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
-    AstNode* variable_node = NULL;
-    OperationStatus status = parseIdentifier(context, &variable_node);
-    if (status != STATUS_OK) {
-        return status;
-    }
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    if (getCurrentTokenType(context) != TOKEN_OP_ASSIGN) {
-        deleteSubtree(variable_node);
-        reportLexerError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    AstNode* variable = parseIdentifier(context);
+    CHECK_OR_FREE(context, {});
 
-    AstNode* expression_node = NULL;
-    status = parseExpression(context, &expression_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(variable_node);
-        return status;
-    }
+    expect(context, TOKEN_OP_ASSIGN);
+    CHECK_OR_FREE(context, deleteSubtree(variable));
 
-    AstNode* assignment_node = NULL;
-    status = makeNode(&assignment_node, AST_NODE_ASSIGNMENT, variable_node, expression_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(variable_node);
-        deleteSubtree(expression_node);
-        return status;
-    }
+    AstNode* expression = parseExpression(context);
+    CHECK_OR_FREE(context, deleteSubtree(variable));
 
-    *result_node = assignment_node;
-    return STATUS_OK;
+    AstNode* assignment = makeNode(context, AST_NODE_ASSIGNMENT, variable, expression);
+    CHECK_OR_FREE(context, {deleteSubtree(variable); deleteSubtree(expression);});
+
+    return assignment;
 }
 
 
-OperationStatus parseCall(ParserContext* context, AstNode** result_node)
+static AstNode* parseCall(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
-    AstNode* function_name_node = NULL;
-    OperationStatus status = parseIdentifier(context, &function_name_node);
-    if (status != STATUS_OK) {
-        return status;
-    }
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    if (getCurrentTokenType(context) != TOKEN_LEFT_PAREN) {
-        deleteSubtree(function_name_node);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    AstNode* function_name = parseIdentifier(context);
+    CHECK_OR_FREE(context, {});
+
+    expect(context, TOKEN_LEFT_PAREN);
+    CHECK_OR_FREE(context, deleteSubtree(function_name));
 
     AstNode* first_arg = NULL;
     AstNode* last_arg = NULL;
     if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
         while (true) {
-            AstNode* expression_node = NULL;
-            status = parseExpression(context, &expression_node);
-            if (status != STATUS_OK) {
-                deleteSubtree(function_name_node);
-                deleteSubtree(first_arg);
-                return status;
-            }
+            AstNode* expression = parseExpression(context);
+            CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
 
-            AstNode* argument_node = NULL;
-            status = makeNode(&argument_node, AST_NODE_ARGUMENT, expression_node, NULL);
-            if (status != STATUS_OK) {
-                deleteSubtree(function_name_node);
-                deleteSubtree(first_arg);
-                deleteSubtree(expression_node);
-                return status;
-            }
+            AstNode* argument = makeNode(context, AST_NODE_ARGUMENT, expression, NULL);
+            CHECK_OR_FREE(context, {deleteSubtree(function_name);
+                deleteSubtree(first_arg); deleteSubtree(expression);});
 
             if (first_arg == NULL) {
-                first_arg = argument_node;
+                first_arg = argument;
             } else {
-                last_arg->right = argument_node;
+                last_arg->right = argument;
+                argument->parent = last_arg;
             }
-            last_arg = argument_node;
+            last_arg = argument;
 
             if (getCurrentTokenType(context) == TOKEN_COMMA) {
                 context->current_token++;
@@ -387,84 +291,54 @@ OperationStatus parseCall(ParserContext* context, AstNode** result_node)
         }
     }
 
-    if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
-        deleteSubtree(function_name_node);
-        deleteSubtree(first_arg);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    expect(context, TOKEN_RIGHT_PAREN);
+    CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
 
-    AstNode* call_node = NULL;
-    status = makeNode(&call_node, AST_NODE_CALL, function_name_node, first_arg);
-    if (status != STATUS_OK) {
-        deleteSubtree(function_name_node);
-        deleteSubtree(first_arg);
-        return status;
-    }
+    AstNode* call = makeNode(context, AST_NODE_CALL, function_name, first_arg);
+    CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
 
-    *result_node = call_node;
-    return STATUS_OK;
+    return call;
 }
 
 
-OperationStatus parseFunction(ParserContext* context, AstNode** result_node)
+static AstNode* parseFunction(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
+    PARSER_ASSERT(context);
 
-    if (getCurrentTokenType(context) != TOKEN_KEYWORD_FUNC) {
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    AstNode* function_name_node = NULL;
-    OperationStatus status = parseIdentifier(context, &function_name_node);
-    if (status != STATUS_OK) {
-        return status;
-    }
+    expect(context, TOKEN_KEYWORD_FUNC);
+    CHECK_OR_FREE(context, {});
 
-    if (getCurrentTokenType(context) != TOKEN_LEFT_PAREN) {
-        deleteSubtree(function_name_node);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
-    }
-    context->current_token++;
+    AstNode* function_name = parseIdentifier(context);
+    CHECK_OR_FREE(context, {});
+
+    expect(context, TOKEN_LEFT_PAREN);
+    CHECK_OR_FREE(context, deleteSubtree(function_name));
+
 
     AstNode* first_param = NULL;
-    status = makeNode(&first_param, AST_NODE_PARAMETER, function_name_node, NULL);
-    if (status != STATUS_OK) {
-        deleteSubtree(function_name_node);
-        return status;
-    }
-    AstNode* last_param = first_param;
+    AstNode* last_param = NULL;
 
     if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
         while (true) {
-            if (getCurrentTokenType(context) != TOKEN_KEYWORD_PARAM) {
-                deleteSubtree(first_param);
-                reportParserError();
-                return STATUS_SYNTAX_ERROR;
-            }
-            context->current_token++;
+            expect(context, TOKEN_KEYWORD_PARAM);
+            CHECK_OR_FREE(context, deleteSubtree(first_param));
 
-            AstNode* identifier_node = NULL;
-            status = parseIdentifier(context, &identifier_node);
-            if (status != STATUS_OK) {
-                deleteSubtree(first_param);
-                return status;
-            }
+            AstNode* identifier = parseIdentifier(context);
+            CHECK_OR_FREE(context, deleteSubtree(first_param));
 
-            AstNode* parameter_node = NULL;
-            status = makeNode(&parameter_node, AST_NODE_PARAMETER, identifier_node, NULL);
-            if (status != STATUS_OK) {
-                deleteSubtree(first_param);
-                deleteSubtree(identifier_node);
-                return status;
+            AstNode* parameter = makeNode(context, AST_NODE_PARAMETER, identifier, NULL);
+            CHECK_OR_FREE(context, {deleteSubtree(first_param); deleteSubtree(identifier);});
+
+            if (first_param == NULL) {
+                first_param = parameter;
+            } else {
+                last_param->right = parameter;
+                parameter->parent = last_param;
             }
 
-            last_param->right = parameter_node;
-            last_param = parameter_node;
+            last_param = parameter;
 
             if (getCurrentTokenType(context) == TOKEN_COMMA) {
                 context->current_token++;
@@ -474,81 +348,205 @@ OperationStatus parseFunction(ParserContext* context, AstNode** result_node)
         }
     }
 
-    if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
-        deleteSubtree(first_param);
-        reportParserError();
-        return STATUS_SYNTAX_ERROR;
+    AstNode* head_param = makeNode(context, AST_NODE_PARAMETER, function_name, first_param);
+    CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_param);});
+
+    expect(context, TOKEN_RIGHT_PAREN);
+    CHECK_OR_FREE(context, deleteSubtree(head_param));
+
+    AstNode* scope = parseScope(context);
+    CHECK_OR_FREE(context, deleteSubtree(head_param));
+
+    AstNode* function = makeNode(context, AST_NODE_FUNCTION, head_param, scope);
+    CHECK_OR_FREE(context, {deleteSubtree(head_param); deleteSubtree(scope);});
+
+    return function;
+}
+
+
+static AstNode* parseExpression(ParserContext* context)
+{
+    PARSER_ASSERT(context);
+
+    RETURN_IF_STATUS_NOT_OK(context);
+
+    AstNode* left = parseTerm(context);
+    CHECK_OR_FREE(context, {});
+
+    TokenType current_type = getCurrentTokenType(context);
+
+    while (current_type == TOKEN_OP_ADD || current_type == TOKEN_OP_SUB) {
+        context->current_token++;
+
+        AstNode* right = parseTerm(context);
+        CHECK_OR_FREE(context, deleteSubtree(left));
+
+        AstNodeType op_type = (current_type == TOKEN_OP_ADD) ? AST_NODE_OP_ADD : AST_NODE_OP_SUB;
+
+        AstNode* op_node = makeNode(context, op_type, left, right);
+        CHECK_OR_FREE(context, {deleteSubtree(left); deleteSubtree(right);});
+
+        left = op_node;
+        current_type = getCurrentTokenType(context);
     }
+
+    return left;
+}
+
+
+static AstNode* parseTerm(ParserContext* context)
+{
+    PARSER_ASSERT(context);
+
+    RETURN_IF_STATUS_NOT_OK(context);
+
+    AstNode* left = parseFactor(context);
+    CHECK_OR_FREE(context, {});
+
+    TokenType current_type = getCurrentTokenType(context);
+
+    while (current_type == TOKEN_OP_MUL || current_type == TOKEN_OP_DIV) {
+        context->current_token++;
+
+        AstNode* right = parseFactor(context);
+        CHECK_OR_FREE(context, deleteSubtree(left));
+
+        AstNodeType op_type = (current_type = TOKEN_OP_MUL) ? AST_NODE_OP_MUL : AST_NODE_OP_DIV;
+
+        AstNode* op_node = makeNode(context, op_type, left, right);
+        CHECK_OR_FREE(context, {deleteSubtree(left); deleteSubtree(right);});
+
+        left = op_node;
+        current_type = getCurrentTokenType(context);
+    }
+
+    return left;
+}
+
+
+static AstNode* parseFactor(ParserContext* context)
+{
+    PARSER_ASSERT(context);
+
+    RETURN_IF_STATUS_NOT_OK(context);
+
+    TokenType current_type = getCurrentTokenType(context);
+
+    if (current_type == TOKEN_OP_ADD || current_type == TOKEN_OP_SUB) {
+        context->current_token++;
+
+        AstNode* operand = parseFactor(context);
+        CHECK_OR_FREE(context, {});
+
+        if (current_type == TOKEN_OP_SUB) {
+            AstNode* neg_node = makeNode(context, AST_NODE_OP_NEG, NULL, operand);
+            CHECK_OR_FREE(context, deleteSubtree(operand));
+
+            return neg_node;
+        }
+
+        return operand;
+    } else if (current_type == TOKEN_NUMBER) {
+        return parseNumber(context);
+    } else if (current_type == TOKEN_LEFT_PAREN) {
+        expect(context, TOKEN_LEFT_PAREN);
+        CHECK_OR_FREE(context, {});
+
+        AstNode* expression = parseExpression(context);
+        CHECK_OR_FREE(context, {});
+
+        expect(context, TOKEN_RIGHT_PAREN);
+        CHECK_OR_FREE(context, deleteSubtree(expression));
+
+        return expression;
+    } else if (current_type == TOKEN_IDENTIFIER) {
+        if (getNextTokenType(context) == TOKEN_LEFT_PAREN) {
+            return parseCall(context);
+        } else {
+            return parseIdentifier(context);
+        }
+    } else {
+        reportParserError(context, TOKEN_UNKNOWN, 
+            "numeric value, parenthesized expression, or identifier expected");
+        return NULL;
+    }
+}
+
+
+static AstNode* parseIdentifier(ParserContext* context)
+{
+    PARSER_ASSERT(context);
+
+    RETURN_IF_STATUS_NOT_OK(context);
+
+   if (getCurrentTokenType(context) != TOKEN_IDENTIFIER) {
+        context->status = STATUS_SYNTAX_ERROR;
+        reportParserError(context, TOKEN_IDENTIFIER, "function or variable name expected");
+        return NULL;
+    }
+
+    AstNode* identifier = makeNode(context, AST_NODE_IDENTIFIER, NULL, NULL);
+    CHECK_OR_FREE(context, {});
+
+    size_t id_index = addIdentifier(context);
+    CHECK_OR_FREE(context, deleteSubtree(identifier));
+
+    identifier->data.id_index = id_index;
+
     context->current_token++;
-
-    AstNode* scope_node = NULL;
-    status = parseScope(context, &scope_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(first_param);
-        return status;
-    }
-
-    AstNode* function_node = NULL;
-    status = makeNode(&function_node, AST_NODE_FUNCTION, first_param, scope_node);
-    if (status != STATUS_OK) {
-        deleteSubtree(first_param);
-        deleteSubtree(scope_node);
-        return status;
-    }
-
-    *result_node = function_node;
-    return STATUS_OK;
+    return identifier;
 }
 
 
-OperationStatus parseFunction(ParserContext* context, AstNode** result_node)
+static AstNode* parseNumber(ParserContext* context)
 {
-    PARSER_ASSERT(context); assert(result_node);
-}
+    PARSER_ASSERT(context);
 
-void deleteSubtree(AstNode* node)
-{
-    assert(node);
+    RETURN_IF_STATUS_NOT_OK(context);
 
-    if (node->left) {
-        deleteSubtree(node->left);
-        node->left = NULL;
-    }
-    if (node->right) {
-        deleteSubtree(node->right);
-        node->right = NULL;
-    }
-    free(node);
-}
-
-
-OperationStatus makeNode(AstNode** node, AstNodeType type, AstNode* left, AstNode* right)
-{
-    assert(node == NULL);
-
-    OperationStatus status = createNode(node);
-    if (status != STATUS_OK) {
-        return status;
+    if (getCurrentTokenType(context) != TOKEN_NUMBER) {
+        context->status = STATUS_SYNTAX_ERROR;
+        reportParserError(context, TOKEN_NUMBER, "Numeric value expected");
+        return NULL;
     }
 
-    (*node)->type = type;
-    (*node)->left = left;
-    (*node)->right = right;
-    (*node)->parent = NULL;
-    (*node)->value = 0;
+    AstNode* number = makeNode(context, AST_NODE_NUMBER, NULL, NULL);
+    CHECK_OR_FREE(context, {});
 
-    return STATUS_OK;
+    Token* token = &context->lexer_context.tokens_array.tokens[context->current_token];
+    int int_value = stringToInt(token->start, token->length);
+    number->data.int_value = int_value;
+
+    context->current_token++;
+    return number;
 }
 
 
-OperationStatus createNode(AstNode** node)
+static int stringToInt(const char* string, size_t len)
 {
-    *node = (AstNode*)calloc(1, sizeof(AstNode));
-    if (*node == NULL) {
-        return STATUS_SYSTEM_OUT_OF_MEMORY;
+    assert(string);
+    
+    int result = 0;
+    for (size_t index = 0; index < len; index++) {
+        result = result * 10 + (string[index] - '0');
     }
 
-    return STATUS_OK;
+    return result;
+}
+
+
+static void expect(ParserContext* context, TokenType expected_type)
+{
+    PARSER_ASSERT(context);
+
+    TokenType current_type = getCurrentTokenType(context);
+    if (expected_type == current_type) {
+        context->current_token++;
+        return;
+    }
+
+    context->status = STATUS_SYNTAX_ERROR;
+    reportParserError(context, expected_type, "");
 }
 
 
@@ -556,7 +554,7 @@ static TokenType getCurrentTokenType(ParserContext* context)
 {
     assert(context);
 
-    return context->lexer_context->tokens_array.tokens[context->current_token].type;
+    return context->lexer_context.tokens_array.tokens[context->current_token].type;
 }
 
 
@@ -564,6 +562,6 @@ static TokenType getNextTokenType(ParserContext* context)
 {
     assert(context);
 
-    return context->lexer_context->tokens_array.tokens[context->current_token - 1].type;
+    return context->lexer_context.tokens_array.tokens[context->current_token + 1].type;
 }
 

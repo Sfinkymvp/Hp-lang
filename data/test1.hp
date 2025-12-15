@@ -6,10 +6,7 @@ func inc(param n)
     c = 1;
 };
 
-x := 1;
-
-func main()
-{
+func main(){
 	c := 2;
 	a := 2 * c;
 	n := -a;

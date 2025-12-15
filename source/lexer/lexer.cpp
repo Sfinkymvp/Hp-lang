@@ -5,91 +5,21 @@
 #include <assert.h>
 
 #include "lexer/lexer.h"
+#include "lexer/lexer_utils.h"
 #include "lexer/token.h"
-#include "lexer/lexer_error.h"
+#include "lexer/token_handlers.h"
+#include "lexer/token_handlers.h"
 #include "io/reader.h"
-
-
-KeyWord KEYWORDS_TABLE[] = {
-    {TOKEN_KEYWORD_FUNC,   "func",   4},
-    {TOKEN_KEYWORD_PARAM,  "param",  5},
-    {TOKEN_KEYWORD_VAR,    "var",    3},
-    {TOKEN_KEYWORD_RETURN, "return", 6},
-    {TOKEN_KEYWORD_CYCLE,  "while",  5},
-    {TOKEN_KEYWORD_IF,     "if",     2}
-};
-
-
-const size_t KEYWORDS_LENGTH = sizeof(KEYWORDS_TABLE) / sizeof(KEYWORDS_TABLE[0]);
 
 
 static void expandTokensArray(LexerContext* context);
 static void parseSpaces(LexerContext* context);
 static void parseEof(LexerContext* context);
-static void parseLeftParen(LexerContext* context);
-static void parseRightParen(LexerContext* context);
-static void parseSemicolon(LexerContext* context);
-static void parseLeftBrace(LexerContext* context);
-static void parseRightBrace(LexerContext* context);
-static void parseOpAdd(LexerContext* context);
-static void parseOpSub(LexerContext* context);
-static void parseOpMul(LexerContext* context);
-static void parseOpDiv(LexerContext* context);
-static void parseOpAssign(LexerContext* context);
+static void parseKeyword(LexerContext* context, size_t keyword_table_idx);
 static void parseNumber(LexerContext* context);
 static void parseIdentifier(LexerContext* context);
 static void parseError(LexerContext* context);
 static bool isValidToken(char token);
-
-
-OperationStatus createLexerContext(LexerContext* context, const char* filename)
-{
-    assert(context); assert(filename);
-
-    SourceMap* source_map = (SourceMap*)calloc(1, sizeof(SourceMap));
-    if (source_map == NULL) {
-        return STATUS_SYSTEM_OUT_OF_MEMORY;
-    }
-    OperationStatus status = readSourceFile(source_map, filename);
-    if (status != STATUS_OK) {
-        free(source_map);
-        return status;
-    }
-    Token* tokens = (Token*)calloc(TOKEN_INITIAL_CAPACITY, sizeof(Token));
-    if (tokens == NULL) {
-        deleteSourceMap(source_map);
-        free(source_map);
-        return STATUS_SYSTEM_OUT_OF_MEMORY;
-    }
-
-    context->tokens_array.count = 0;
-    context->tokens_array.capacity = TOKEN_INITIAL_CAPACITY;
-    context->tokens_array.tokens = tokens;
-
-    context->source_map = source_map;
-    context->current = context->source_map->buffer;
-    context->current_line = 1;
-
-    return STATUS_OK;
-}
-
-
-void deleteLexerContext(LexerContext* context)
-{
-    assert(context);
-
-    if (context->source_map) {
-        deleteSourceMap(context->source_map);
-        free(context->source_map);
-        context->source_map = NULL;
-    }
-    if (context->tokens_array.tokens) {
-        free(context->tokens_array.tokens);
-        context->tokens_array.tokens = NULL;
-    }
-    context->current = NULL;
-    context->current_line = 0;
-}
 
 
 void runLexer(LexerContext* context)
@@ -100,6 +30,7 @@ void runLexer(LexerContext* context)
         if (context->tokens_array.count == context->tokens_array.capacity) {
             expandTokensArray(context);
         }
+
         parseSpaces(context);
 
         if (context->current[0] == '\0') {
@@ -107,26 +38,30 @@ void runLexer(LexerContext* context)
             break;
         }
 
-        switch (context->current[0]) {
-            case '(': parseLeftParen(context);   break;
-            case ')': parseRightParen(context);  break;
-            case ';': parseSemicolon(context);   break;
-            case '{': parseLeftBrace(context);   break;
-            case '}': parseRightBrace(context);  break;
-            case '+': parseOpAdd(context);       break;
-            case '-': parseOpSub(context);       break;
-            case '*': parseOpMul(context);       break;
-            case '/': parseOpDiv(context);       break;
-            case '=': parseOpAssign(context);    break;
-            default:
-                if (isdigit(context->current[0])) {
-                    parseNumber(context);        break;
-                } else if (isalpha(context->current[0]) || context->current[0] == '_') {
-                    parseIdentifier(context);    break;
-                } else {
-                    parseError(context);         break;
-                }
+        bool is_keyword = false;
+        for (size_t index = 0; index < KEYWORD_TABLE_SIZE; index++) {
+            if (strncmp(context->current, KEYWORD_TABLE[index].text, KEYWORD_TABLE[index].length) == 0) {
+                parseKeyword(context, index);
+                is_keyword = true;
+                break;
+            }
         }
+        if (is_keyword) {
+            continue;
+        }
+
+        if (isdigit(context->current[0])) {
+            parseNumber(context);
+            continue;
+        } 
+        
+        if (isalpha(context->current[0]) || context->current[0] == '_' || !isspace(context->current[0])) {
+            parseIdentifier(context);
+            continue;
+        }
+
+        parseError(context);
+        break;
     }
 }
 
@@ -167,157 +102,22 @@ static void parseEof(LexerContext* context)
     token->length = 1;
     token->line = context->current_line;
 
-    context->current++;
+    context->current += token->length;
 }
 
 
-static void parseLeftParen(LexerContext* context)
+static void parseKeyword(LexerContext* context, size_t keyword_table_idx)
 {
-    LEXER_ASSERT(context);
+    LEXER_ASSERT(context); assert(keyword_table_idx < KEYWORD_TABLE_SIZE);
 
     Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
 
-    token->type = TOKEN_LEFT_PAREN;
+    token->type = KEYWORD_TABLE[keyword_table_idx].type;
     token->start = context->current;
-    token->length = 1;
+    token->length = KEYWORD_TABLE[keyword_table_idx].length;
     token->line = context->current_line;
 
-    context->current++;
-}
-
-
-static void parseRightParen(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_RIGHT_PAREN;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseSemicolon(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_SEMICOLON;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseLeftBrace(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_LEFT_BRACE;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseRightBrace(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_RIGHT_BRACE;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseOpAdd(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_OP_ADD;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseOpSub(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_OP_SUB;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseOpMul(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_OP_MUL;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseOpDiv(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_OP_DIV;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
-}
-
-
-static void parseOpAssign(LexerContext* context)
-{
-    LEXER_ASSERT(context);
-
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
-
-    token->type = TOKEN_OP_ASSIGN;
-    token->start = context->current;
-    token->length = 1;
-    token->line = context->current_line;
-
-    context->current++;
+    context->current += token->length;
 }
 
 
@@ -370,13 +170,15 @@ static void parseIdentifier(LexerContext* context)
     bool is_keyword = false;
     Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
 
-    for (size_t index = 0; index < KEYWORDS_LENGTH; index++) {
-        if (KEYWORDS_TABLE[index].length == length &&
-            strncmp(context->current, KEYWORDS_TABLE[index].text, length) == 0) {
-            token->type = KEYWORDS_TABLE[index].type;
+    for (size_t index = 0; index < KEYWORD_TABLE_SIZE; index++) {
+        if (KEYWORD_TABLE[index].length == length &&
+            strncmp(context->current, KEYWORD_TABLE[index].text, length) == 0) {
+
+            token->type = KEYWORD_TABLE[index].type;
             token->start = context->current;
             token->length = length;
             token->line = context->current_line;
+
             is_keyword = true;
             break;
         }
