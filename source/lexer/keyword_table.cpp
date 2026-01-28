@@ -2,7 +2,7 @@
 #include <assert.h>
 
 #include "lexer/token.h"
-#include "lexer/token_handlers.h"
+#include "lexer/keyword_table.h"
 
 
 const KeyWord KEYWORD_TABLE[] = {

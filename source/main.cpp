@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "io/args.h"
 #include "io/reader.h"
+#include "io/args.h"
+#include "io/writer.h"
 #include "lexer/token.h"
 #include "lexer/lexer.h"
 #include "lexer/lexer_utils.h"
@@ -29,12 +30,10 @@ int main(const int argc, const char** argv)
             index, token.type, token.length, token.line, (int)token.length, token.start);
     }
 
-    //AstNode* ast_root = makeNode(&context, AST_NODE_OP_ADD, NULL, NULL);
-    //AST_DUMP(&context, ast_root, "Dump Test");
     AstNode* ast_root = parseProgram(&context);
 
     if (context.status == STATUS_OK) {
-//        writeAstTreeToFile(&context, ast_head);
+        writeAstTreeToDisk(&context, ast_root);
     }
 
     OperationStatus status = context.status;

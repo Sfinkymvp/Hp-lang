@@ -4,9 +4,8 @@
 
 #include "io/args.h"
 #include "io/reader.h"
-#include "lexer/token_handlers.h"
+#include "lexer/keyword_table.h"
 #include "parser/parser_utils.h"
-#include "parser/id_table.h"
 #include "parser/ast.h"
 #include "parser/parser.h"
 #include "colors.h"
@@ -21,7 +20,7 @@ void createParserContext(ParserContext* context, const int argc, const char** ar
     assert(context); assert(argv);
 
     context->current_token = 0;
-    context->current_parsing_context = CONTEXT_GLOBAL;
+    //context->current_parsing_context = CONTEXT_GLOBAL;
     context->status = STATUS_OK;
 
     parseCmdArgs(context, argc, argv);
@@ -142,8 +141,14 @@ AstNode* makeNode(ParserContext* context, AstNodeType type, AstNode* left, AstNo
     node->type   = type;
     node->left   = left;
     node->right  = right;
-    node->parent = NULL;
     node->data.id_index = 0;
+
+    if (left) {
+        left->parent = node;
+    }
+    if (right) {
+        right->parent = node;
+    }
 
     return node;
 }

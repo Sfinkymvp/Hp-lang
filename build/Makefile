@@ -24,9 +24,9 @@ OUTPUT_NAME = front
 
 
 FILES = $(OBJDIR)/main.o $(OBJDIR)/io/reader.o $(OBJDIR)/lexer/lexer.o $(OBJDIR)/lexer/lexer_utils.o \
-	$(OBJDIR)/parser/id_table.o $(OBJDIR)/parser/parser_utils.o $(OBJDIR)/parser/parser.o \
-	$(OBJDIR)/lexer/token_handlers.o $(OBJDIR)/ast_dump/ast_visualizer.o $(OBJDIR)/ast_dump/html_generator.o \
-	$(OBJDIR)/io/args.o
+	$(OBJDIR)/parser/ast.o $(OBJDIR)/parser/parser_utils.o $(OBJDIR)/parser/parser.o \
+	$(OBJDIR)/lexer/keyword_table.o $(OBJDIR)/ast_dump/ast_visualizer.o $(OBJDIR)/ast_dump/html_generator.o \
+	$(OBJDIR)/io/args.o $(OBJDIR)/io/writer.o
 
 FLAGS += -I../include
 

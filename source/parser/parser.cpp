@@ -2,7 +2,6 @@
 #include <assert.h>
 
 #include "parser/parser.h"
-#include "parser/id_table.h"
 #include "parser/ast.h"
 #include "parser/parser_utils.h"
 #include "status.h"
@@ -25,6 +24,7 @@ static AstNode* parseDeclaration(ParserContext* context);
 static AstNode* parseAssignment(ParserContext* context);
 static AstNode* parseCall(ParserContext* context);
 static AstNode* parseFunction(ParserContext* context);
+static AstNode* parseReturn(ParserContext* context);
 static AstNode* parseExpression(ParserContext* context);
 static AstNode* parseTerm(ParserContext* context);
 static AstNode* parseFactor(ParserContext* context);
@@ -45,6 +45,10 @@ AstNode* parseProgram(ParserContext* context)
     AstNode* current = NULL; 
 
     while (getCurrentTokenType(context) != TOKEN_EOF) {
+        if (head) {
+            AST_DUMP(context, head, "in the parseProgram function loop. Before parsing the Statement");
+        }
+
         AstNode* statement = parseStatement(context);
         CHECK_OR_FREE(context, deleteSubtree(head));
 
@@ -64,9 +68,7 @@ AstNode* parseProgram(ParserContext* context)
         current = semicolon;
     }
 
-    if (head) {
-        AST_DUMP(context, head, "in the parseProgram function loop. Before parsing the Statement");
-    }
+
     return head;
 }
 
@@ -100,6 +102,13 @@ static AstNode* parseStatement(ParserContext* context)
         return parseCycle(context);
     } else if (current_type == TOKEN_KEYWORD_FUNC) {
         return parseFunction(context);
+    } else if (current_type == TOKEN_KEYWORD_RETURN) {
+        if (context->current_scope != SCOPE_FUNCTION) {
+            reportParserError(context, TOKEN_KEYWORD_RETURN ,
+                "Return statement is only allowed inside functions");
+        }
+
+        return parseReturn(context);
     } else {
         reportParserError(context, TOKEN_UNKNOWN,
             "An unexpected token was received");
@@ -354,13 +363,34 @@ static AstNode* parseFunction(ParserContext* context)
     expect(context, TOKEN_RIGHT_PAREN);
     CHECK_OR_FREE(context, deleteSubtree(head_param));
 
+    context->current_scope = SCOPE_FUNCTION;
     AstNode* scope = parseScope(context);
+    context->current_scope = SCOPE_GLOBAL;
     CHECK_OR_FREE(context, deleteSubtree(head_param));
 
     AstNode* function = makeNode(context, AST_NODE_FUNCTION, head_param, scope);
     CHECK_OR_FREE(context, {deleteSubtree(head_param); deleteSubtree(scope);});
 
     return function;
+}
+
+
+static AstNode* parseReturn(ParserContext* context)
+{
+    PARSER_ASSERT(context);
+
+    RETURN_IF_STATUS_NOT_OK(context);
+
+    expect(context, TOKEN_KEYWORD_RETURN);
+    CHECK_OR_FREE(context, {});
+
+    AstNode* expression = parseExpression(context);
+    CHECK_OR_FREE(context, {});
+
+    AstNode* return_node = makeNode(context, AST_NODE_RETURN, expression, NULL);
+    CHECK_OR_FREE(context, deleteSubtree(expression));
+
+    return return_node;
 }
 
 

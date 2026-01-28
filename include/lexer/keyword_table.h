@@ -1,5 +1,5 @@
-#ifndef TOKEN_HANDLERS_H_
-#define TOKEN_HANDLERS_H_
+#ifndef KEYWORD_TABLE_H_
+#define KEYWORD_TABLE_H_
 
 
 #include "lexer/token.h"
@@ -19,4 +19,4 @@ extern const size_t KEYWORD_TABLE_SIZE;
 const char* getKeyWordString(TokenType type);
 
 
-#endif // TOKEN_HANDLERS_H_
+#endif // KEYWORD_TABLE_H_

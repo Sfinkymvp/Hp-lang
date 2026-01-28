@@ -2,6 +2,7 @@
 #define AST_H_
 
 
+#include "../../ast_types.h"
 #include "status.h"
 #include "lexer/token.h"
 
@@ -22,31 +23,9 @@ const size_t ID_TABLE_INITIAL_CAPACITY = 8;
 
 
 typedef enum {
-    CONTEXT_GLOBAL,
-    CONTEXT_FUNCTION,
-    CONTEXT_LOOP
-} ParsingContextType;
-
-
-typedef enum {
-    AST_NODE_SEMICOLON,
-    AST_NODE_CYCLE,
-    AST_NODE_IF,
-    AST_NODE_DECLARATION,
-    AST_NODE_ASSIGNMENT,
-    AST_NODE_ARGUMENT,
-    AST_NODE_CALL,
-    AST_NODE_PARAMETER,
-    AST_NODE_FUNCTION,
-    AST_NODE_IDENTIFIER,
-    AST_NODE_NUMBER,
-    AST_NODE_OP_ADD,
-    AST_NODE_OP_SUB,
-    AST_NODE_OP_MUL,
-    AST_NODE_OP_DIV,
-    AST_NODE_OP_POW,
-    AST_NODE_OP_NEG
-} AstNodeType;
+    SCOPE_GLOBAL,
+    SCOPE_FUNCTION
+} ScopeType;
 
 
 typedef struct {
@@ -54,6 +33,17 @@ typedef struct {
     const char* output_file;
     bool simple_visualizer;
 } CmdArgs;
+
+
+typedef struct {
+    AstNodeType type;
+    const char* display_name;
+    const char* symbol;
+} AstNodeTypeInfo;
+
+
+extern AstNodeTypeInfo AST_NODE_TYPES_STRINGS[];
+extern const size_t STRINGS_SIZE;
 
 
 typedef struct {
@@ -85,9 +75,27 @@ typedef struct {
     IdentifierTable id_table;
     LexerContext lexer_context;
     size_t current_token;
-    ParsingContextType current_parsing_context;
+    ScopeType current_scope;
     OperationStatus status;
 } ParserContext;
+
+
+const char* getNodeType(ParserContext* context, AstNode* node);
+
+
+const char* getNodeSymbol(ParserContext* context, AstNode* node);
+
+ 
+void createIdentifierTable(ParserContext* context);
+
+
+void expandIdentifierTable(ParserContext* context);
+
+
+size_t addIdentifier(ParserContext* context);
+
+
+void deleteIdentifierTable(ParserContext* context);
 
 
 #endif // AST_H_

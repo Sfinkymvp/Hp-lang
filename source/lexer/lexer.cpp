@@ -7,8 +7,7 @@
 #include "lexer/lexer.h"
 #include "lexer/lexer_utils.h"
 #include "lexer/token.h"
-#include "lexer/token_handlers.h"
-#include "lexer/token_handlers.h"
+#include "lexer/keyword_table.h"
 #include "io/reader.h"
 
 
@@ -70,7 +69,8 @@ static void expandTokensArray(LexerContext* context)
 {
     LEXER_ASSERT(context);
 
-    Token* tokens = (Token*)calloc(context->tokens_array.capacity * 2, sizeof(Token));
+    Token* tokens = (Token*)realloc(context->tokens_array.tokens, 
+        context->tokens_array.capacity * 2 * sizeof(Token));
     assert(tokens);
 
     context->tokens_array.tokens = tokens;
