@@ -7,61 +7,55 @@
 #include "lexer/lexer.h"
 #include "lexer/lexer_utils.h"
 #include "lexer/token.h"
-#include "lexer/keyword_table.h"
 #include "io/reader.h"
+
+
+static const char* VALID_SYMBOLS = "();{}+-*/=";
 
 
 static void expandTokensArray(LexerContext* context);
 static void parseSpaces(LexerContext* context);
 static void parseEof(LexerContext* context);
-static void parseKeyword(LexerContext* context, size_t keyword_table_idx);
+static bool isKeyword(LexerContext* context, size_t* keyword_idx);
+static void parseKeyword(LexerContext* context, size_t keyword_idx);
 static void parseNumber(LexerContext* context);
 static void parseIdentifier(LexerContext* context);
 static void parseError(LexerContext* context);
-static bool isValidToken(char token);
+static bool isValidSymbol(char token);
 
 
 void runLexer(LexerContext* context)
 {
     LEXER_ASSERT(context);
 
-    while (true) {
+    while (context->current[0] != '\0') {
         if (context->tokens_array.count == context->tokens_array.capacity) {
             expandTokensArray(context);
         }
 
         parseSpaces(context);
 
-        if (context->current[0] == '\0') {
-            parseEof(context);
-            break;
-        }
-
-        bool is_keyword = false;
-        for (size_t index = 0; index < KEYWORD_TABLE_SIZE; index++) {
-            if (strncmp(context->current, KEYWORD_TABLE[index].text, KEYWORD_TABLE[index].length) == 0) {
-                parseKeyword(context, index);
-                is_keyword = true;
-                break;
-            }
-        }
-        if (is_keyword) {
-            continue;
-        }
-
         if (isdigit(context->current[0])) {
             parseNumber(context);
             continue;
         } 
-        
-        if (isalpha(context->current[0]) || context->current[0] == '_' || !isspace(context->current[0])) {
+
+        size_t keyword_idx = 0;
+        if (isKeyword(context, &keyword_idx)) {
+            parseKeyword(context, keyword_idx);
+            continue;
+        }
+
+        if (isalpha(context->current[0]) || context->current[0] == '_') {
             parseIdentifier(context);
             continue;
         }
 
         parseError(context);
-        break;
+        return;
     }
+
+    parseEof(context);
 }
 
 
@@ -71,7 +65,8 @@ static void expandTokensArray(LexerContext* context)
 
     Token* tokens = (Token*)realloc(context->tokens_array.tokens, 
         context->tokens_array.capacity * 2 * sizeof(Token));
-    assert(tokens);
+    if (tokens == NULL) {
+    }
 
     context->tokens_array.tokens = tokens;
     context->tokens_array.capacity *= 2;
@@ -106,15 +101,37 @@ static void parseEof(LexerContext* context)
 }
 
 
-static void parseKeyword(LexerContext* context, size_t keyword_table_idx)
+static bool isKeyword(LexerContext* context, size_t* keyword_idx) {
+    LEXER_ASSERT(context); assert(keyword_idx);
+
+    for (size_t index = 0; index < KEYWORD_TABLE_SIZE; index++) {
+        size_t length = KEYWORD_TABLE[index].length;
+        if (strncmp(context->current, KEYWORD_TABLE[index].text, length) == 0) {
+            char last_char = context->current[length - 1];
+            char next_char = context->current[length];
+
+            if (isalnum(last_char) && (isalnum(next_char) || next_char == '_')) {
+                continue;
+            }
+
+            *keyword_idx = index;
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+
+static void parseKeyword(LexerContext* context, size_t keyword_idx)
 {
-    LEXER_ASSERT(context); assert(keyword_table_idx < KEYWORD_TABLE_SIZE);
+    LEXER_ASSERT(context); assert(keyword_idx < KEYWORD_TABLE_SIZE);
 
     Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
 
-    token->type = KEYWORD_TABLE[keyword_table_idx].type;
+    token->type = KEYWORD_TABLE[keyword_idx].type;
     token->start = context->current;
-    token->length = KEYWORD_TABLE[keyword_table_idx].length;
+    token->length = KEYWORD_TABLE[keyword_idx].length;
     token->line = context->current_line;
 
     context->current += token->length;
@@ -202,7 +219,7 @@ static void parseError(LexerContext* context)
     const char* error_start = context->current;
 
     while (context->current[0] != '\0' && !isspace(context->current[0]) && 
-        !isValidToken(context->current[0])) {
+        !isValidSymbol(context->current[0])) {
         context->current++;
     }
 
@@ -218,19 +235,15 @@ static void parseError(LexerContext* context)
 }
 
 
-static bool isValidToken(char token)
+static bool isValidSymbol(char token)
 {
-    const char* valid_tokens = "();{}+-*/=";
-
     if (isalnum(token) || token == '_') {
         return true;
     }
 
-    for (size_t index = 0; index < strlen(valid_tokens); index++) {
-        if (token == valid_tokens[index]) {
-            return true;
-        }
+    if (strchr(VALID_SYMBOLS, token) != NULL) {
+        return true;
+    } else {
+        return false;
     }
-
-    return false;
 }

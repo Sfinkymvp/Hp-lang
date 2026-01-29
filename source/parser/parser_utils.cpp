@@ -4,7 +4,6 @@
 
 #include "io/args.h"
 #include "io/reader.h"
-#include "lexer/keyword_table.h"
 #include "parser/parser_utils.h"
 #include "parser/ast.h"
 #include "parser/parser.h"
@@ -23,21 +22,25 @@ void createParserContext(ParserContext* context, const int argc, const char** ar
     //context->current_parsing_context = CONTEXT_GLOBAL;
     context->status = STATUS_OK;
 
+    // Парсятся аргументы командной строки
     parseCmdArgs(context, argc, argv);
     if (context->status != STATUS_OK) {
         return;
     }
 
+    // Создается таблица идентификаторов (уникальных имен)
     createIdentifierTable(context);
     if (context->status != STATUS_OK) {
         return;
     }
 
+    // Создается окружение лексера
     context->status = createLexerContext(&context->lexer_context, context->cmd_args.input_file);
     if (context->status != STATUS_OK) {
         return;
     }
 
+    // Открытие html файла для записи отладочной информации (в том числе изображений дерева)
     openAstDumpFile(context);
 }
 
@@ -74,7 +77,7 @@ void reportParserError(ParserContext* context, TokenType expected_type, const ch
         fprintf(stderr, "Line %zu: Column %zu: " RED("Syntax error: ")
             "expected ", current_line, error_offset);
         
-        const char* keyword_string = getKeyWordString(expected_type);
+        const char* keyword_string = getKeywordString(expected_type);
         if (keyword_string) {
             fprintf(stderr, CYAN("'%s'"), keyword_string);
         } else {

@@ -5,12 +5,6 @@
 const size_t TOKEN_INITIAL_CAPACITY = 64;
 
 
-#define LEXER_ASSERT(context)                                                                  \
-    assert(context->source_map); assert(context->source_map->buffer);         \
-    assert(context->source_map->lines); assert(context->tokens_array.tokens);                  \
-    assert(context->current); assert(context->current_line <= context->source_map->lines_count)
-
-
 typedef enum {
     TOKEN_EOF,
     TOKEN_OP_ADD,
@@ -26,15 +20,28 @@ typedef enum {
     TOKEN_SEMICOLON,
     TOKEN_LEFT_BRACE,
     TOKEN_RIGHT_BRACE,
-    TOKEN_KEYWORD_FUNC,
-    TOKEN_KEYWORD_PARAM,
-    TOKEN_KEYWORD_RETURN,
-    TOKEN_KEYWORD_IF,
-    TOKEN_KEYWORD_CYCLE,
+    TOKEN_FUNC,
+    TOKEN_PARAM,
+    TOKEN_RETURN,
+    TOKEN_IF,
+    TOKEN_CYCLE,
     TOKEN_NUMBER,
     TOKEN_IDENTIFIER,
     TOKEN_UNKNOWN
 } TokenType;
+
+
+typedef struct {
+    TokenType type;
+    const char* text;
+    size_t length;
+} KeyWord;
+
+
+typedef struct {
+    const char* start;
+    size_t length;
+} LineInfo;
 
 
 typedef struct {
@@ -53,12 +60,6 @@ typedef struct {
 
 
 typedef struct {
-    const char* start;
-    size_t length;
-} LineInfo;
-
-
-typedef struct {
     char* buffer;
     LineInfo* lines;
     size_t lines_count;
@@ -71,6 +72,19 @@ typedef struct {
     const char* current;
     size_t current_line;
 } LexerContext;
+
+
+#define LEXER_ASSERT(context)                                                                    \
+    assert(context->source_map); assert(context->source_map->buffer);                            \
+    assert(context->source_map->lines); assert(context->tokens_array.tokens);                    \
+    assert(context->current); assert(context->current_line <= context->source_map->lines_count)
+
+
+extern const KeyWord KEYWORD_TABLE[];
+extern const size_t KEYWORD_TABLE_SIZE;
+
+
+const char* getKeywordString(TokenType type);
 
 
 #endif // TOKEN_H_

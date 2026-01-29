@@ -10,7 +10,7 @@
 const size_t ID_TABLE_INITIAL_CAPACITY = 8;
 
 
-#define PARSER_ASSERT(context)                                                         \
+#define PARSER_ASSERT(context)                                \
     assert(context); assert(context->id_table.identifiers);  
 
 
@@ -24,7 +24,8 @@ const size_t ID_TABLE_INITIAL_CAPACITY = 8;
 
 typedef enum {
     SCOPE_GLOBAL,
-    SCOPE_FUNCTION
+    SCOPE_FUNCTION,
+    SCOPE_BLOCK
 } ScopeType;
 
 

@@ -7,7 +7,7 @@
 #include "status.h"
 
 
-const size_t NUMBER_BUFFER_SIZE = 32;
+const size_t BUFFER_SIZE = 32;
 
 
 #define GENERATE_STRING_TYPE(type, symbol) {type, #type, symbol}
@@ -64,14 +64,14 @@ const char* getNodeSymbol(ParserContext* context, AstNode* node)
         }
     }
 
-    static char buffer[NUMBER_BUFFER_SIZE] = "";
+    static char buffer[BUFFER_SIZE] = "";
 
     if (node->type == AST_NODE_NUMBER) {
-        snprintf(buffer, NUMBER_BUFFER_SIZE, "%d", node->data.int_value);
+        snprintf(buffer, BUFFER_SIZE, "%d", node->data.int_value);
         return buffer;
     } else if (node->type == AST_NODE_IDENTIFIER) {
-        assert(node->data.id_index < context->ast.count);
-        return context->ast.identifiers[node->data.id_index];
+        assert(node->data.id_index < context->id_table.count);
+        return context->id_table.identifiers[node->data.id_index];
     } else {
         return "UNKNOWN_NODE_SYMBOL";
     }
@@ -86,9 +86,9 @@ void createIdentifierTable(ParserContext* context)
         return;
     }
 
-    context->ast.identifiers = temp;
-    context->ast.count = 0;
-    context->ast.capacity = ID_TABLE_INITIAL_CAPACITY;
+    context->id_table.identifiers = temp;
+    context->id_table.count = 0;
+    context->id_table.capacity = ID_TABLE_INITIAL_CAPACITY;
 }
 
 
@@ -96,14 +96,14 @@ void expandIdentifierTable(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    char** temp = (char**)realloc(context->ast.identifiers, context->ast.capacity * 2 * sizeof(char*));
+    char** temp = (char**)realloc(context->id_table.identifiers, context->id_table.capacity * 2 * sizeof(char*));
     if (temp == NULL) {
         context->status = STATUS_SYSTEM_OUT_OF_MEMORY;
         return;
     }
 
-    context->ast.identifiers = temp;
-    context->ast.capacity *= 2;
+    context->id_table.identifiers = temp;
+    context->id_table.capacity *= 2;
 }
 
 
@@ -114,22 +114,22 @@ size_t addIdentifier(ParserContext* context)
     Token* token = &context->lexer_context.tokens_array.tokens[context->current_token];
     assert(token); assert(token->start); assert(token->type == TOKEN_IDENTIFIER);
 
-    for (size_t index = 0; index < context->ast.count; index++) {
-        if (strncmp(token->start, context->ast.identifiers[index], token->length) == 0 &&
-            context->ast.identifiers[index][token->length] == '\0') {
+    for (size_t index = 0; index < context->id_table.count; index++) {
+        if (strncmp(token->start, context->id_table.identifiers[index], token->length) == 0 &&
+            context->id_table.identifiers[index][token->length] == '\0') {
             return index;
         }
     }
 
-    if (context->ast.count == context->ast.capacity) {
+    if (context->id_table.count == context->id_table.capacity) {
         expandIdentifierTable(context);
         if (context->status != STATUS_OK) {
             return (size_t)-1;
         }
     }
 
-    size_t new_index = context->ast.count;
-    char* identifier = context->ast.identifiers[new_index];
+    size_t new_index = context->id_table.count;
+    char* identifier = context->id_table.identifiers[new_index];
 
     identifier = (char*)calloc(token->length + 1, sizeof(char));
     if (identifier == NULL) {
@@ -140,8 +140,8 @@ size_t addIdentifier(ParserContext* context)
     memcpy(identifier, token->start, token->length);
     identifier[token->length] = '\0';
 
-    context->ast.identifiers[new_index] = identifier;
-    context->ast.count++;
+    context->id_table.identifiers[new_index] = identifier;
+    context->id_table.count++;
 
     return new_index;
 }
@@ -151,11 +151,11 @@ void deleteIdentifierTable(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    for (size_t index = 0; index < context->ast.count; index++) {
-        free(context->ast.identifiers[index]);
+    for (size_t index = 0; index < context->id_table.count; index++) {
+        free(context->id_table.identifiers[index]);
     }
 
-    free(context->ast.identifiers);
-    context->ast.count = 0;
-    context->ast.capacity = 0;
+    free(context->id_table.identifiers);
+    context->id_table.count = 0;
+    context->id_table.capacity = 0;
 }

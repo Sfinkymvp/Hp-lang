@@ -21,21 +21,25 @@ int main(const int argc, const char** argv)
     if (context.status != STATUS_OK) {
         return 1;
     }
-
+    // Создается структура парсера и инициализируется.
     runLexer(&context.lexer_context);
 
+    // Отладочная печать
     for (size_t index = 0; index < context.lexer_context.tokens_array.count; index++) {
         Token token = context.lexer_context.tokens_array.tokens[index];
         printf("Index: %3zu, type: %3d, length: %3zu, line: %3zu, text: %.*s\n",
             index, token.type, token.length, token.line, (int)token.length, token.start);
     }
 
+    // Парсер работает по токенам и создает дерево
     AstNode* ast_root = parseProgram(&context);
 
+    // При удачном создании дерево выводится в файл
     if (context.status == STATUS_OK) {
         writeAstTreeToDisk(&context, ast_root);
     }
 
+    // Освобождение ресурсов и завершение программы 
     OperationStatus status = context.status;
 
     AST_DUMP(&context, ast_root, "In main");

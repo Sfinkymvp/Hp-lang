@@ -5,7 +5,6 @@
 
 #include "ast_dump/ast_visualizer.h"
 #include "lexer/token.h"
-#include "lexer/keyword_table.h"
 #include "parser/ast.h"
 
 

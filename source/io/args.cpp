@@ -47,7 +47,8 @@ static void parseInputFile(ParserContext* context, const int argc, const char** 
     assert(context); assert(argv); assert(index);
 
     if (*index + 1 < (size_t)argc && argv[*index + 1][0] != '-') {
-        context->cmd_args.input_file = argv[*index + 1]; (*index)++;
+        context->cmd_args.input_file = argv[*index + 1];
+        (*index)++;
         return;
     }
 
@@ -60,7 +61,8 @@ static void parseOutputFile(ParserContext* context, const int argc, const char**
     assert(context); assert(argv); assert(index);
 
     if (*index + 1 < (size_t)argc && argv[*index + 1][0] != '-') {
-        context->cmd_args.output_file = argv[*index + 1]; (*index)++;
+        context->cmd_args.output_file = argv[*index + 1];
+        (*index)++;
         return;
     }
 

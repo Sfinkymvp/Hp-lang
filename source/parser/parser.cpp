@@ -7,9 +7,9 @@
 #include "status.h"
 
 
-#define CHECK_OR_FREE(context, action)                \
+#define HANDLE_ERROR(parser_context, action)          \
     do {                                              \
-        if ((context)->status != STATUS_OK) {         \
+        if ((parser_context)->status != STATUS_OK) {  \
             action;                                   \
             return NULL;                              \
         }                                             \
@@ -50,13 +50,13 @@ AstNode* parseProgram(ParserContext* context)
         }
 
         AstNode* statement = parseStatement(context);
-        CHECK_OR_FREE(context, deleteSubtree(head));
+        HANDLE_ERROR(context, deleteSubtree(head));
 
         expect(context, TOKEN_SEMICOLON);
-        CHECK_OR_FREE(context, {deleteSubtree(head); deleteSubtree(statement);});
+        HANDLE_ERROR(context, {deleteSubtree(head); deleteSubtree(statement);});
 
         AstNode* semicolon = makeNode(context, AST_NODE_SEMICOLON, statement, NULL);
-        CHECK_OR_FREE(context, {deleteSubtree(head); deleteSubtree(statement);});
+        HANDLE_ERROR(context, {deleteSubtree(head); deleteSubtree(statement);});
         
         if (!head) {
             head = semicolon;
@@ -96,15 +96,15 @@ static AstNode* parseStatement(ParserContext* context)
         }
     } else if (current_type == TOKEN_LEFT_BRACE) {
         return parseScope(context);
-    } else if (current_type == TOKEN_KEYWORD_IF) {
+    } else if (current_type == TOKEN_IF) {
         return parseIf(context);
-    } else if (current_type == TOKEN_KEYWORD_CYCLE) {
+    } else if (current_type == TOKEN_CYCLE) {
         return parseCycle(context);
-    } else if (current_type == TOKEN_KEYWORD_FUNC) {
+    } else if (current_type == TOKEN_FUNC) {
         return parseFunction(context);
-    } else if (current_type == TOKEN_KEYWORD_RETURN) {
+    } else if (current_type == TOKEN_RETURN) {
         if (context->current_scope != SCOPE_FUNCTION) {
-            reportParserError(context, TOKEN_KEYWORD_RETURN ,
+            reportParserError(context, TOKEN_RETURN ,
                 "Return statement is only allowed inside functions");
         }
 
@@ -129,18 +129,18 @@ static AstNode* parseScope(ParserContext* context)
     AstNode* current = NULL;
 
     expect(context, TOKEN_LEFT_BRACE);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     TokenType current_type = getCurrentTokenType(context);
     while (current_type != TOKEN_RIGHT_BRACE && current_type != TOKEN_EOF) {
         AstNode* statement = parseStatement(context);
-        CHECK_OR_FREE(context, deleteSubtree(head));
+        HANDLE_ERROR(context, deleteSubtree(head));
 
         expect(context, TOKEN_SEMICOLON);
-        CHECK_OR_FREE(context, deleteSubtree(statement));
+        HANDLE_ERROR(context, deleteSubtree(statement));
 
         AstNode* semicolon = makeNode(context, AST_NODE_SEMICOLON, statement, NULL);
-        CHECK_OR_FREE(context, {deleteSubtree(statement); deleteSubtree(head);});
+        HANDLE_ERROR(context, {deleteSubtree(statement); deleteSubtree(head);});
 
         if (!head) {
             head = semicolon;
@@ -154,7 +154,7 @@ static AstNode* parseScope(ParserContext* context)
     }
 
     expect(context, TOKEN_RIGHT_BRACE);
-    CHECK_OR_FREE(context, deleteSubtree(head));
+    HANDLE_ERROR(context, deleteSubtree(head));
 
     return head;
 }
@@ -166,23 +166,23 @@ static AstNode* parseCycle(ParserContext* context)
 
     RETURN_IF_STATUS_NOT_OK(context);
 
-    expect(context, TOKEN_KEYWORD_CYCLE);
-    CHECK_OR_FREE(context, {});
+    expect(context, TOKEN_CYCLE);
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_LEFT_PAREN);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     AstNode* expression = parseExpression(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
     
     expect(context, TOKEN_RIGHT_PAREN);
-    CHECK_OR_FREE(context, deleteSubtree(expression));
+    HANDLE_ERROR(context, deleteSubtree(expression));
 
     AstNode* scope = parseScope(context);
-    CHECK_OR_FREE(context, deleteSubtree(expression));
+    HANDLE_ERROR(context, deleteSubtree(expression));
 
     AstNode* cycle = makeNode(context, AST_NODE_CYCLE, expression, scope);
-    CHECK_OR_FREE(context, {deleteSubtree(expression); deleteSubtree(scope);});
+    HANDLE_ERROR(context, {deleteSubtree(expression); deleteSubtree(scope);});
 
     return cycle;
 }
@@ -194,24 +194,23 @@ static AstNode* parseIf(ParserContext* context)
 
     RETURN_IF_STATUS_NOT_OK(context);
 
-    expect(context, TOKEN_KEYWORD_IF);
-    CHECK_OR_FREE(context, {});
+    expect(context, TOKEN_IF);
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_LEFT_PAREN);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     AstNode* expression = parseExpression(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_RIGHT_PAREN);
-    CHECK_OR_FREE(context, deleteSubtree(expression));
-
+    HANDLE_ERROR(context, deleteSubtree(expression));
 
     AstNode* scope = parseScope(context);
-    CHECK_OR_FREE(context, deleteSubtree(expression));
+    HANDLE_ERROR(context, deleteSubtree(expression));
 
     AstNode* if_node = makeNode(context, AST_NODE_IF, expression, scope);
-    CHECK_OR_FREE(context, {deleteSubtree(expression); deleteSubtree(scope);});
+    HANDLE_ERROR(context, {deleteSubtree(expression); deleteSubtree(scope);});
 
     return if_node;
 }
@@ -224,16 +223,16 @@ static AstNode* parseDeclaration(ParserContext* context)
     RETURN_IF_STATUS_NOT_OK(context);
 
     AstNode* variable = parseIdentifier(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_OP_DECLARATION);
-    CHECK_OR_FREE(context, deleteSubtree(variable));
+    HANDLE_ERROR(context, deleteSubtree(variable));
 
     AstNode* expression = parseExpression(context);
-    CHECK_OR_FREE(context, deleteSubtree(variable));
+    HANDLE_ERROR(context, deleteSubtree(variable));
 
     AstNode* declaration = makeNode(context, AST_NODE_DECLARATION, variable, expression);
-    CHECK_OR_FREE(context, {deleteSubtree(variable); deleteSubtree(expression);});
+    HANDLE_ERROR(context, {deleteSubtree(variable); deleteSubtree(expression);});
 
     return declaration;
 }
@@ -246,16 +245,16 @@ static AstNode* parseAssignment(ParserContext* context)
     RETURN_IF_STATUS_NOT_OK(context);
 
     AstNode* variable = parseIdentifier(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_OP_ASSIGN);
-    CHECK_OR_FREE(context, deleteSubtree(variable));
+    HANDLE_ERROR(context, deleteSubtree(variable));
 
     AstNode* expression = parseExpression(context);
-    CHECK_OR_FREE(context, deleteSubtree(variable));
+    HANDLE_ERROR(context, deleteSubtree(variable));
 
     AstNode* assignment = makeNode(context, AST_NODE_ASSIGNMENT, variable, expression);
-    CHECK_OR_FREE(context, {deleteSubtree(variable); deleteSubtree(expression);});
+    HANDLE_ERROR(context, {deleteSubtree(variable); deleteSubtree(expression);});
 
     return assignment;
 }
@@ -268,20 +267,20 @@ static AstNode* parseCall(ParserContext* context)
     RETURN_IF_STATUS_NOT_OK(context);
 
     AstNode* function_name = parseIdentifier(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_LEFT_PAREN);
-    CHECK_OR_FREE(context, deleteSubtree(function_name));
+    HANDLE_ERROR(context, deleteSubtree(function_name));
 
     AstNode* first_arg = NULL;
     AstNode* last_arg = NULL;
     if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
         while (true) {
             AstNode* expression = parseExpression(context);
-            CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
+            HANDLE_ERROR(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
 
             AstNode* argument = makeNode(context, AST_NODE_ARGUMENT, expression, NULL);
-            CHECK_OR_FREE(context, {deleteSubtree(function_name);
+            HANDLE_ERROR(context, {deleteSubtree(function_name);
                 deleteSubtree(first_arg); deleteSubtree(expression);});
 
             if (first_arg == NULL) {
@@ -301,10 +300,10 @@ static AstNode* parseCall(ParserContext* context)
     }
 
     expect(context, TOKEN_RIGHT_PAREN);
-    CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
+    HANDLE_ERROR(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
 
     AstNode* call = makeNode(context, AST_NODE_CALL, function_name, first_arg);
-    CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
+    HANDLE_ERROR(context, {deleteSubtree(function_name); deleteSubtree(first_arg);});
 
     return call;
 }
@@ -316,14 +315,14 @@ static AstNode* parseFunction(ParserContext* context)
 
     RETURN_IF_STATUS_NOT_OK(context);
 
-    expect(context, TOKEN_KEYWORD_FUNC);
-    CHECK_OR_FREE(context, {});
+    expect(context, TOKEN_FUNC);
+    HANDLE_ERROR(context, {});
 
     AstNode* function_name = parseIdentifier(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     expect(context, TOKEN_LEFT_PAREN);
-    CHECK_OR_FREE(context, deleteSubtree(function_name));
+    HANDLE_ERROR(context, deleteSubtree(function_name));
 
 
     AstNode* first_param = NULL;
@@ -331,14 +330,14 @@ static AstNode* parseFunction(ParserContext* context)
 
     if (getCurrentTokenType(context) != TOKEN_RIGHT_PAREN) {
         while (true) {
-            expect(context, TOKEN_KEYWORD_PARAM);
-            CHECK_OR_FREE(context, deleteSubtree(first_param));
+            expect(context, TOKEN_PARAM);
+            HANDLE_ERROR(context, deleteSubtree(first_param));
 
             AstNode* identifier = parseIdentifier(context);
-            CHECK_OR_FREE(context, deleteSubtree(first_param));
+            HANDLE_ERROR(context, deleteSubtree(first_param));
 
             AstNode* parameter = makeNode(context, AST_NODE_PARAMETER, identifier, NULL);
-            CHECK_OR_FREE(context, {deleteSubtree(first_param); deleteSubtree(identifier);});
+            HANDLE_ERROR(context, {deleteSubtree(first_param); deleteSubtree(identifier);});
 
             if (first_param == NULL) {
                 first_param = parameter;
@@ -358,18 +357,18 @@ static AstNode* parseFunction(ParserContext* context)
     }
 
     AstNode* head_param = makeNode(context, AST_NODE_PARAMETER, function_name, first_param);
-    CHECK_OR_FREE(context, {deleteSubtree(function_name); deleteSubtree(first_param);});
+    HANDLE_ERROR(context, {deleteSubtree(function_name); deleteSubtree(first_param);});
 
     expect(context, TOKEN_RIGHT_PAREN);
-    CHECK_OR_FREE(context, deleteSubtree(head_param));
+    HANDLE_ERROR(context, deleteSubtree(head_param));
 
     context->current_scope = SCOPE_FUNCTION;
     AstNode* scope = parseScope(context);
     context->current_scope = SCOPE_GLOBAL;
-    CHECK_OR_FREE(context, deleteSubtree(head_param));
+    HANDLE_ERROR(context, deleteSubtree(head_param));
 
     AstNode* function = makeNode(context, AST_NODE_FUNCTION, head_param, scope);
-    CHECK_OR_FREE(context, {deleteSubtree(head_param); deleteSubtree(scope);});
+    HANDLE_ERROR(context, {deleteSubtree(head_param); deleteSubtree(scope);});
 
     return function;
 }
@@ -381,14 +380,14 @@ static AstNode* parseReturn(ParserContext* context)
 
     RETURN_IF_STATUS_NOT_OK(context);
 
-    expect(context, TOKEN_KEYWORD_RETURN);
-    CHECK_OR_FREE(context, {});
+    expect(context, TOKEN_RETURN);
+    HANDLE_ERROR(context, {});
 
     AstNode* expression = parseExpression(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     AstNode* return_node = makeNode(context, AST_NODE_RETURN, expression, NULL);
-    CHECK_OR_FREE(context, deleteSubtree(expression));
+    HANDLE_ERROR(context, deleteSubtree(expression));
 
     return return_node;
 }
@@ -401,7 +400,7 @@ static AstNode* parseExpression(ParserContext* context)
     RETURN_IF_STATUS_NOT_OK(context);
 
     AstNode* left = parseTerm(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     TokenType current_type = getCurrentTokenType(context);
 
@@ -409,12 +408,12 @@ static AstNode* parseExpression(ParserContext* context)
         context->current_token++;
 
         AstNode* right = parseTerm(context);
-        CHECK_OR_FREE(context, deleteSubtree(left));
+        HANDLE_ERROR(context, deleteSubtree(left));
 
         AstNodeType op_type = (current_type == TOKEN_OP_ADD) ? AST_NODE_OP_ADD : AST_NODE_OP_SUB;
 
         AstNode* op_node = makeNode(context, op_type, left, right);
-        CHECK_OR_FREE(context, {deleteSubtree(left); deleteSubtree(right);});
+        HANDLE_ERROR(context, {deleteSubtree(left); deleteSubtree(right);});
 
         left = op_node;
         current_type = getCurrentTokenType(context);
@@ -431,7 +430,7 @@ static AstNode* parseTerm(ParserContext* context)
     RETURN_IF_STATUS_NOT_OK(context);
 
     AstNode* left = parseFactor(context);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     TokenType current_type = getCurrentTokenType(context);
 
@@ -439,12 +438,17 @@ static AstNode* parseTerm(ParserContext* context)
         context->current_token++;
 
         AstNode* right = parseFactor(context);
-        CHECK_OR_FREE(context, deleteSubtree(left));
+        HANDLE_ERROR(context, deleteSubtree(left));
 
-        AstNodeType op_type = (current_type = TOKEN_OP_MUL) ? AST_NODE_OP_MUL : AST_NODE_OP_DIV;
+        AstNodeType op_type = AST_NODE_OP_MUL;
+        if (current_type == TOKEN_OP_MUL) {
+            op_type = AST_NODE_OP_MUL;
+        } else {
+            op_type = AST_NODE_OP_DIV;
+        }
 
         AstNode* op_node = makeNode(context, op_type, left, right);
-        CHECK_OR_FREE(context, {deleteSubtree(left); deleteSubtree(right);});
+        HANDLE_ERROR(context, {deleteSubtree(left); deleteSubtree(right);});
 
         left = op_node;
         current_type = getCurrentTokenType(context);
@@ -466,11 +470,11 @@ static AstNode* parseFactor(ParserContext* context)
         context->current_token++;
 
         AstNode* operand = parseFactor(context);
-        CHECK_OR_FREE(context, {});
+        HANDLE_ERROR(context, {});
 
         if (current_type == TOKEN_OP_SUB) {
             AstNode* neg_node = makeNode(context, AST_NODE_OP_NEG, NULL, operand);
-            CHECK_OR_FREE(context, deleteSubtree(operand));
+            HANDLE_ERROR(context, deleteSubtree(operand));
 
             return neg_node;
         }
@@ -480,13 +484,13 @@ static AstNode* parseFactor(ParserContext* context)
         return parseNumber(context);
     } else if (current_type == TOKEN_LEFT_PAREN) {
         expect(context, TOKEN_LEFT_PAREN);
-        CHECK_OR_FREE(context, {});
+        HANDLE_ERROR(context, {});
 
         AstNode* expression = parseExpression(context);
-        CHECK_OR_FREE(context, {});
+        HANDLE_ERROR(context, {});
 
         expect(context, TOKEN_RIGHT_PAREN);
-        CHECK_OR_FREE(context, deleteSubtree(expression));
+        HANDLE_ERROR(context, deleteSubtree(expression));
 
         return expression;
     } else if (current_type == TOKEN_IDENTIFIER) {
@@ -516,10 +520,10 @@ static AstNode* parseIdentifier(ParserContext* context)
     }
 
     AstNode* identifier = makeNode(context, AST_NODE_IDENTIFIER, NULL, NULL);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     size_t id_index = addIdentifier(context);
-    CHECK_OR_FREE(context, deleteSubtree(identifier));
+    HANDLE_ERROR(context, deleteSubtree(identifier));
 
     identifier->data.id_index = id_index;
 
@@ -541,7 +545,7 @@ static AstNode* parseNumber(ParserContext* context)
     }
 
     AstNode* number = makeNode(context, AST_NODE_NUMBER, NULL, NULL);
-    CHECK_OR_FREE(context, {});
+    HANDLE_ERROR(context, {});
 
     Token* token = &context->lexer_context.tokens_array.tokens[context->current_token];
     int int_value = stringToInt(token->start, token->length);
