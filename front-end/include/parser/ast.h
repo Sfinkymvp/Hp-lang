@@ -2,7 +2,7 @@
 #define AST_H_
 
 
-#include "../../ast_types.h"
+#include "ast_types.h"
 #include "status.h"
 #include "lexer/token.h"
 
