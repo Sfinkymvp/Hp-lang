@@ -3,7 +3,7 @@
 #include <assert.h>
 
 
-#include "io/args.h"
+#include "lexer/token.h"
 
 
 static void setTypicalSettings(CmdArgs* args);

@@ -1,7 +1,7 @@
 #ifndef SYMBOLS_H_
 #define SYMBOLS_H_
 
-#include "ast_types.h"
+#include "ast_shared.h"
 #include "parser/ast.h"
 #include "stack.h"
 #include "list.h"

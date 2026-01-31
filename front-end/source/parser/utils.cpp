@@ -1,17 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 
-#include "io/args.h"
 #include "io/reader.h"
+#include "ast_dump/html_generator.h"
 #include "parser/utils.h"
 #include "parser/ast.h"
 #include "parser/parser.h"
 #include "colors.h"
 #include "status.h"
-
-
-static OperationStatus createNode(AstNode** node);
 
 
 void createParserContext(ParserContext* parser, LexerContext* lexer)
@@ -24,12 +22,12 @@ void createParserContext(ParserContext* parser, LexerContext* lexer)
     parser->current_token = 0;
     parser->status = STATUS_OK;
 
-    createIdentifierTable(parser);
+    parser->status = createIdentifierTable(&parser->id_table);
     if (parser->status != STATUS_OK) {
         return;
     }
     
-    openAstDumpFile(parser);
+    parser->dump_file = openAstDumpFile();
 }
 
 
@@ -37,7 +35,7 @@ void deleteParserContext(ParserContext* context)
 {
     assert(context);
 
-    deleteIdentifierTable(context);
+    deleteIdentifierTable(&context->id_table);
     context->current_token = 0;
 
     if (context->dump_file != NULL) {
@@ -103,25 +101,7 @@ void reportParserError(ParserContext* context, TokenType expected_type, const ch
 }
 
 
-void deleteSubtree(AstNode* node)
-{
-    if (node == NULL) {
-        return;
-    }
-
-    if (node->left) {
-        deleteSubtree(node->left);
-        node->left = NULL;
-    }
-    if (node->right) {
-        deleteSubtree(node->right);
-        node->right = NULL;
-    }
-    free(node);
-}
-
-
-AstNode* makeNode(ParserContext* context, AstNodeType type, size_t line, AstNode* left, AstNode* right)
+AstNode* makeNode(ParserContext* context, NodeType type, size_t line, AstNode* left, AstNode* right)
 {
     PARSER_ASSERT(context);
 
@@ -148,13 +128,42 @@ AstNode* makeNode(ParserContext* context, AstNodeType type, size_t line, AstNode
 }
 
 
-static OperationStatus createNode(AstNode** node)
+size_t addIdentifier(ParserContext* context)
 {
-    *node = (AstNode*)calloc(1, sizeof(AstNode));
-    if (*node == NULL) {
-        return STATUS_SYSTEM_OUT_OF_MEMORY;
+    PARSER_ASSERT(context);
+
+    Token* token = &context->tokens_array->tokens[context->current_token];
+    assert(token); assert(token->start); assert(token->type == TOKEN_IDENTIFIER);
+
+    for (size_t index = 0; index < context->id_table.count; index++) {
+        if (strncmp(token->start, context->id_table.identifiers[index], token->length) == 0 &&
+            context->id_table.identifiers[index][token->length] == '\0') {
+            return index;
+        }
     }
 
-    return STATUS_OK;
+    if (context->id_table.count == context->id_table.capacity) {
+        expandIdentifierTable(&context->id_table);
+        if (context->status != STATUS_OK) {
+            return (size_t)-1;
+        }
+    }
+
+    size_t new_index = context->id_table.count;
+    char* identifier = context->id_table.identifiers[new_index];
+
+    identifier = (char*)calloc(token->length + 1, sizeof(char));
+    if (identifier == NULL) {
+        context->status = STATUS_SYSTEM_OUT_OF_MEMORY;
+        return (size_t)-1;
+    }
+
+    memcpy(identifier, token->start, token->length);
+    identifier[token->length] = '\0';
+
+    context->id_table.identifiers[new_index] = identifier;
+    context->id_table.count++;
+
+    return new_index;
 }
 

@@ -80,7 +80,7 @@ static AstNode* parseStatement(ParserContext* context)
 {
     PARSER_ASSERT(context); 
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     TokenType current_type = getCurrentTokenType(context);
     if (current_type == TOKEN_IDENTIFIER) {
@@ -121,7 +121,7 @@ static AstNode* parseScope(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     AstNode* head = NULL;
     AstNode* current = NULL;
@@ -164,7 +164,7 @@ static AstNode* parseSingleScope(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t scope_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -182,7 +182,7 @@ static AstNode* parseCycle(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t cycle_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -212,7 +212,7 @@ static AstNode* parseIf(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t if_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -255,7 +255,7 @@ static AstNode* parseDeclaration(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t declaration_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -279,7 +279,7 @@ static AstNode* parseAssignment(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t assignment_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -303,7 +303,7 @@ static AstNode* parseCall(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t call_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -353,7 +353,7 @@ static AstNode* parseFunction(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t function_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -414,7 +414,7 @@ static AstNode* parseReturn(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     size_t return_line = context->tokens_array->tokens[context->current_token].line;
 
@@ -435,7 +435,7 @@ static AstNode* parseExpression(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     AstNode* left = parseTerm(context);
     HANDLE_ERROR(context, {});
@@ -449,7 +449,7 @@ static AstNode* parseExpression(ParserContext* context)
         AstNode* right = parseTerm(context);
         HANDLE_ERROR(context, deleteSubtree(left));
 
-        AstNodeType op_type = AST_NODE_OP_ADD;
+        NodeType op_type = AST_NODE_OP_ADD;
         if (current_type == TOKEN_OP_ADD) {
             op_type = AST_NODE_OP_ADD;
         } else {
@@ -471,7 +471,7 @@ static AstNode* parseTerm(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     AstNode* left = parseFactor(context);
     HANDLE_ERROR(context, {});
@@ -485,7 +485,7 @@ static AstNode* parseTerm(ParserContext* context)
         AstNode* right = parseFactor(context);
         HANDLE_ERROR(context, deleteSubtree(left));
 
-        AstNodeType op_type = AST_NODE_OP_MUL;
+        NodeType op_type = AST_NODE_OP_MUL;
         if (current_type == TOKEN_OP_MUL) {
             op_type = AST_NODE_OP_MUL;
         } else {
@@ -507,7 +507,7 @@ static AstNode* parseFactor(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     TokenType current_type = getCurrentTokenType(context);
 
@@ -557,7 +557,7 @@ static AstNode* parseIdentifier(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
    if (getCurrentTokenType(context) != TOKEN_IDENTIFIER) {
         context->status = STATUS_SYNTAX_ERROR;
@@ -583,7 +583,7 @@ static AstNode* parseNumber(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    RETURN_IF_STATUS_NOT_OK(context);
+    RETURN_PARSER_ERROR(context);
 
     if (getCurrentTokenType(context) != TOKEN_NUMBER) {
         context->status = STATUS_SYNTAX_ERROR;

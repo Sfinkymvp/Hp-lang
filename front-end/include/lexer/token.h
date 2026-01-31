@@ -96,6 +96,9 @@ extern const KeyWord KEYWORD_TABLE[];
 extern const size_t KEYWORD_TABLE_SIZE;
 
 
+bool parseCmdArgs(CmdArgs* args, const int argc, const char** argv);
+
+
 const char* getKeywordString(TokenType type);
 
 

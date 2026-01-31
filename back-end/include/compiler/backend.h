@@ -2,9 +2,6 @@
 #define BACKEND_H_
 
 
-#include "ast_types.h"
-
-
 #define HANDLE_ERROR(context, action)                  \
     do {                                                \
         if ((context)->status != STATUS_OK) {           \
@@ -15,10 +12,10 @@
 
 
 typedef enum {
-    SYMBOL_UNKNOWN;
-    SYMBOL_VARIABLE;
-    SYMBOL_PARAMETER;
-    SYMBOL_FUNCTION;
+    SYMBOL_UNKNOWN,
+    SYMBOL_VARIABLE,
+    SYMBOL_PARAMETER,
+    SYMBOL_FUNCTION
 } SymbolType;
 
 
