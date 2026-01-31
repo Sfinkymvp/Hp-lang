@@ -2,42 +2,39 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "lexer/lexer_utils.h"
+#include "lexer/utils.h"
 #include "lexer/token.h"
 #include "io/reader.h"
 #include "colors.h"
 #include "status.h"
 
 
-OperationStatus createLexerContext(LexerContext* context, const char* filename)
+void createLexerContext(LexerContext* context, CmdArgs* args)
 {
-    assert(context); assert(filename);
+    assert(context); assert(args); assert(args->input_file);
 
-    SourceMap* source_map = (SourceMap*)calloc(1, sizeof(SourceMap));
-    if (source_map == NULL) {
-        return STATUS_SYSTEM_OUT_OF_MEMORY;
-    }
-    OperationStatus status = readSourceFile(source_map, filename);
+    OperationStatus status = readSourceFile(&context->source_map, args->input_file);
     if (status != STATUS_OK) {
-        free(source_map);
-        return status;
+        context->status = status;
+        printf("1\n");
+        return;
     }
     Token* tokens = (Token*)calloc(TOKEN_INITIAL_CAPACITY, sizeof(Token));
     if (tokens == NULL) {
-        deleteSourceMap(source_map);
-        free(source_map);
-        return STATUS_SYSTEM_OUT_OF_MEMORY;
+        deleteSourceMap(&context->source_map);
+        context->status = STATUS_SYSTEM_OUT_OF_MEMORY;
+        printf("2\n");
+        return;
     }
 
     context->tokens_array.count = 0;
     context->tokens_array.capacity = TOKEN_INITIAL_CAPACITY;
     context->tokens_array.tokens = tokens;
 
-    context->source_map = source_map;
-    context->current = context->source_map->buffer;
+    context->args = args;
+    context->current = context->source_map.buffer;
     context->current_line = 1;
-
-    return STATUS_OK;
+    context->status = STATUS_OK;
 }
 
 
@@ -45,11 +42,7 @@ void deleteLexerContext(LexerContext* context)
 {
     assert(context);
 
-    if (context->source_map) {
-        deleteSourceMap(context->source_map);
-        free(context->source_map);
-        context->source_map = NULL;
-    }
+    deleteSourceMap(&context->source_map);
     if (context->tokens_array.tokens) {
         free(context->tokens_array.tokens);
         context->tokens_array.tokens = NULL;
@@ -64,10 +57,10 @@ void reportLexerError(LexerContext* context, const char* error_start, size_t len
     const char* error_message)
 {
     LEXER_ASSERT(context); assert(error_start); assert(error_message);
-    assert(context->source_map->lines[context->current_line - 1].start < error_start);
+    assert(context->source_map.lines[context->current_line - 1].start < error_start);
 
-    const char* line_start = context->source_map->lines[context->current_line - 1].start;
-    const size_t line_length = context->source_map->lines[context->current_line - 1].length;
+    const char* line_start = context->source_map.lines[context->current_line - 1].start;
+    const size_t line_length = context->source_map.lines[context->current_line - 1].length;
 
     size_t error_offset = (size_t)(error_start - line_start);
 
@@ -90,4 +83,6 @@ void reportLexerError(LexerContext* context, const char* error_start, size_t len
     }
 
     fprintf(stderr, RED("^\n"));
+
+    context->status = STATUS_LEXICAL_ERROR;
 }

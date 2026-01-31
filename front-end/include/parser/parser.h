@@ -3,6 +3,7 @@
 
 
 #include "parser/ast.h"
+#include "parser/utils.h"
 #include "ast_dump/html_generator.h"
 
 

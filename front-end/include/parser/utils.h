@@ -3,11 +3,11 @@
 
 
 #include "status.h"
-#include "lexer/lexer_utils.h"
+#include "lexer/utils.h"
 #include "parser/ast.h"
 
 
-void createParserContext(ParserContext* context, const int argc, const char** argv);
+void createParserContext(ParserContext* parser, LexerContext* lexer);
 
 
 void deleteParserContext(ParserContext* context);
@@ -19,7 +19,7 @@ void reportParserError(ParserContext* context, TokenType expected_type, const ch
 void deleteSubtree(AstNode* node);
 
 
-AstNode* makeNode(ParserContext* context, AstNodeType type, AstNode* left, AstNode* right);
+AstNode* makeNode(ParserContext* context, AstNodeType type, size_t line, AstNode* left, AstNode* right);
 
 
 #endif // PARSER_UTILS_H_

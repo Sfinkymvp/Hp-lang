@@ -5,7 +5,7 @@
 #include <assert.h>
 
 #include "lexer/lexer.h"
-#include "lexer/lexer_utils.h"
+#include "lexer/utils.h"
 #include "lexer/token.h"
 #include "io/reader.h"
 
@@ -20,6 +20,7 @@ static bool isKeyword(LexerContext* context, size_t* keyword_idx);
 static void parseKeyword(LexerContext* context, size_t keyword_idx);
 static void parseNumber(LexerContext* context);
 static void parseIdentifier(LexerContext* context);
+static void parseComments(LexerContext* context);
 static void parseError(LexerContext* context);
 static bool isValidSymbol(char token);
 
@@ -39,6 +40,11 @@ void runLexer(LexerContext* context)
             parseNumber(context);
             continue;
         } 
+
+        if (strncmp("//", context->current, 2) == 0) {
+            parseComments(context);
+            continue;
+        }
 
         size_t keyword_idx = 0;
         if (isKeyword(context, &keyword_idx)) {
@@ -66,6 +72,8 @@ static void expandTokensArray(LexerContext* context)
     Token* tokens = (Token*)realloc(context->tokens_array.tokens, 
         context->tokens_array.capacity * 2 * sizeof(Token));
     if (tokens == NULL) {
+        context->status = STATUS_SYSTEM_OUT_OF_MEMORY;
+        return;
     }
 
     context->tokens_array.tokens = tokens;
@@ -89,8 +97,16 @@ static void parseSpaces(LexerContext* context)
 static void parseEof(LexerContext* context)
 {
     LEXER_ASSERT(context);
+    
+    /*for (size_t index = 0; index < context->tokens_array.count; index++) {
+        Token token = context->tokens_array.tokens[index];
+        printf("Index: %3zu, type: %3d, length: %3zu, line: %3zu, text: %.*s\n",
+            index, token.type, token.length, token.line, (int)token.length, token.start);
+    }*/
 
-    Token* token = &context->tokens_array.tokens[context->tokens_array.count++];
+
+    Token* token = &context->tokens_array.tokens[context->tokens_array.count];
+    context->tokens_array.count++;
 
     token->type = TOKEN_EOF;
     token->start = context->current;
@@ -209,6 +225,40 @@ static void parseIdentifier(LexerContext* context)
     }
 
     context->current = end;
+}
+
+
+static void parseComments(LexerContext* context)
+{
+    LEXER_ASSERT(context);
+
+    if (strncmp("///", context->current, 3) == 0) {
+        const char* comment_start = context->current;
+        context->current += 3;
+        bool found_end = false;
+
+        while (context->current[0] != '\0') {
+            if (strncmp("\\\\\\", context->current, 3) == 0) {
+                context->current += 3;
+                found_end = true;
+                break;
+            }
+            if (context->current[0] == '\n') {
+                context->current_line++;
+            }
+
+            context->current++;
+        }
+
+        if (!found_end) {
+            reportLexerError(context, comment_start, 3, "Unterminated multiline comment");
+        }
+    } else if (strncmp("//", context->current, 2) == 0) {
+        context->current += 2;
+        while (context->current[0] != '\n' && context->current[0] != '\0') {
+            context->current++;
+        }
+    }
 }
 
 

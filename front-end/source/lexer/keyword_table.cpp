@@ -23,6 +23,7 @@ const KeyWord KEYWORD_TABLE[] = {
     {TOKEN_RETURN,         "return", 6},
     {TOKEN_CYCLE,          "while",  5},
     {TOKEN_IF,             "if",     2},
+    {TOKEN_ELSE,           "else",   4}
 };
 
 

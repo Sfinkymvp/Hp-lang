@@ -15,13 +15,13 @@ const size_t BUFFER_SIZE = 32;
 
 AstNodeTypeInfo AST_NODE_TYPES_STRINGS[] = {
     GENERATE_STRING_TYPE(AST_NODE_SEMICOLON,   ";"       ),
+    GENERATE_STRING_TYPE(AST_NODE_SCOPE,       "{}"      ),
     GENERATE_STRING_TYPE(AST_NODE_CYCLE,       "while"   ),
     GENERATE_STRING_TYPE(AST_NODE_IF,          "if"      ),
     GENERATE_STRING_TYPE(AST_NODE_DECLARATION, ":="      ),
     GENERATE_STRING_TYPE(AST_NODE_ASSIGNMENT,  "="       ),
-    GENERATE_STRING_TYPE(AST_NODE_ARGUMENT,    ","       ),
+    GENERATE_STRING_TYPE(AST_NODE_COMMA,       ","       ),
     GENERATE_STRING_TYPE(AST_NODE_CALL,        "call"    ),
-    GENERATE_STRING_TYPE(AST_NODE_PARAMETER,   ","       ),
     GENERATE_STRING_TYPE(AST_NODE_FUNCTION,    "func"    ),
     GENERATE_STRING_TYPE(AST_NODE_RETURN,      "return"  ),
     GENERATE_STRING_TYPE(AST_NODE_IDENTIFIER,  ""        ),
@@ -111,7 +111,7 @@ size_t addIdentifier(ParserContext* context)
 {
     PARSER_ASSERT(context);
 
-    Token* token = &context->lexer_context.tokens_array.tokens[context->current_token];
+    Token* token = &context->tokens_array->tokens[context->current_token];
     assert(token); assert(token->start); assert(token->type == TOKEN_IDENTIFIER);
 
     for (size_t index = 0; index < context->id_table.count; index++) {
@@ -149,7 +149,7 @@ size_t addIdentifier(ParserContext* context)
 
 void deleteIdentifierTable(ParserContext* context)
 {
-    PARSER_ASSERT(context);
+    assert(context);
 
     for (size_t index = 0; index < context->id_table.count; index++) {
         free(context->id_table.identifiers[index]);

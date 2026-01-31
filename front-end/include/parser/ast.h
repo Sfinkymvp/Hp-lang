@@ -4,14 +4,14 @@
 
 #include "ast_types.h"
 #include "status.h"
-#include "lexer/token.h"
+#include "lexer/lexer.h"
 
 
 const size_t ID_TABLE_INITIAL_CAPACITY = 8;
 
 
 #define PARSER_ASSERT(context)                                \
-    assert(context); assert(context->id_table.identifiers);  
+    assert(context); assert(context->id_table.identifiers)
 
 
 #define RETURN_IF_STATUS_NOT_OK(context)              \
@@ -20,20 +20,6 @@ const size_t ID_TABLE_INITIAL_CAPACITY = 8;
             return NULL;                              \
         }                                             \
     } while (0)
-
-
-typedef enum {
-    SCOPE_GLOBAL,
-    SCOPE_FUNCTION,
-    SCOPE_BLOCK
-} ScopeType;
-
-
-typedef struct {
-    const char* input_file;
-    const char* output_file;
-    bool simple_visualizer;
-} CmdArgs;
 
 
 typedef struct {
@@ -64,6 +50,7 @@ typedef struct AstNode AstNode;
 struct AstNode {
     AstNodeType type;
     NodeData data;
+    size_t line;
     AstNode* left;
     AstNode* right;
     AstNode* parent;
@@ -71,12 +58,12 @@ struct AstNode {
 
 
 typedef struct {
-    CmdArgs cmd_args;
+    CmdArgs* args;
     FILE* dump_file;
+    SourceMap* source_map;
+    TokensArray* tokens_array;
     IdentifierTable id_table;
-    LexerContext lexer_context;
     size_t current_token;
-    ScopeType current_scope;
     OperationStatus status;
 } ParserContext;
 

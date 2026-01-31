@@ -5,7 +5,7 @@
 #include <assert.h>
 
 #include "io/reader.h"
-#include "lexer/token.h"
+#include "lexer/lexer.h"
 
 
 static size_t getFileSize(FILE* file);

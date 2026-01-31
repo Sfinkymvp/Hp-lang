@@ -6,6 +6,7 @@
 #define PURPLE_FG  "\033[95m"
 #define RED_FG     "\033[91m"
 #define GREEN_FG   "\033[92m"
+#define YELLOW_FG  "\033[33m"
 #define WHITE_FG   "\033[97m"
 #define DEFAULT_FG "\033[0m"
 
@@ -14,6 +15,7 @@
 #define PURPLE(text) PURPLE_FG text DEFAULT_FG
 #define RED(text) RED_FG text DEFAULT_FG
 #define GREEN(text) GREEN_FG text DEFAULT_FG
+#define YELLOW(text) YELLOW_FG text DEFAULT_FG
 #define WHITE(text) WHITE_FG text DEFAULT_FG
 
 

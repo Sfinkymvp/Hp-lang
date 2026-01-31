@@ -2,10 +2,10 @@
 #define ARGS_H_
 
 
-#include "parser/ast.h"
+#include "lexer/token.h"
 
 
-void parseCmdArgs(ParserContext* context, const int argc, const char** argv);
+bool parseCmdArgs(CmdArgs* args, const int argc, const char** argv);
 
 
 #endif // ARGS_H_

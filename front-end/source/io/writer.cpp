@@ -2,14 +2,14 @@
 #include <assert.h>
 
 #include "io/writer.h"
-#include "parser/ast.h"
+#include "parser/parser.h"
 
 
 OperationStatus writeAstTreeToDisk(ParserContext* context, AstNode* ast_root)
 {
     PARSER_ASSERT(context); assert(ast_root);
 
-    FILE* file = fopen(context->cmd_args.output_file, "w");
+    FILE* file = fopen(context->args->output_file, "w");
     if (file == NULL) {
         return STATUS_IO_FILE_OPEN_ERROR;
     }

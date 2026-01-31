@@ -4,8 +4,8 @@
 #include <assert.h>
 
 #include "ast_dump/ast_visualizer.h"
-#include "lexer/token.h"
-#include "parser/ast.h"
+#include "lexer/lexer.h"
+#include "parser/parser.h"
 
 
 static void generateNode(ParserContext* context, AstNode* node,
@@ -31,7 +31,7 @@ void generateGraph(ParserContext* context, AstNode* ast_root, const char* graph_
 
     int counter = 0;
     int rank = 0;
-    if (context->cmd_args.simple_visualizer) {
+    if (context->args->simple_visualizer) {
         generateSimpleNode(context, ast_root, graph_file, rank, &counter);
     } else {
         generateNode(context, ast_root, graph_file, rank, &counter);

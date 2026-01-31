@@ -5,9 +5,9 @@
 #include <assert.h>
 
 #include "ast_dump/html_generator.h"
-#include "lexer/token.h"
 #include "ast_dump/ast_visualizer.h"
-#include "parser/ast.h"
+#include "lexer/lexer.h"
+#include "parser/parser.h"
 
 
 const size_t BUFFER_SIZE = 256;
