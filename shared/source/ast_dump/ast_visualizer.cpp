@@ -4,8 +4,7 @@
 #include <assert.h>
 
 #include "ast_dump/ast_visualizer.h"
-#include "lexer/lexer.h"
-#include "parser/parser.h"
+#include "ast_shared.h"
 
 
 static void generateNode(IdentifierTable* id_table, AstNode* node, FILE* graph_file, int rank, int* counter);

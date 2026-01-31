@@ -1,0 +1,1 @@
+(; (func (, (main nil nil) nil)(; (:= (a nil nil)(/ (5 nil nil)(0 nil nil)))(; (:= (b nil nil)(+ (a nil nil)(0 nil nil)))(; (= (b nil nil)(+ (* (b nil nil)(1 nil nil))(* (0 nil nil)(* (1 nil nil)(b nil nil)))))(; (return  nil(+ (a nil nil)(b nil nil))) nil))))) nil)

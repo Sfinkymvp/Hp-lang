@@ -5,10 +5,13 @@
 
 
 #include "defs.h"
+#include "colors.h"
+#include "optimizer.h"
 
 
 #define ZERO(node) isNum(node, 0)
 #define ONE(node)  isNum(node, 1)
+
 
 typedef enum {
     FOLD_NOT_CONST = 0,
@@ -17,31 +20,23 @@ typedef enum {
 } FoldStatus;
 
 
-static FoldStatus foldConstants(OptimizerContext* context, AstNode* node, size_t tree_idx);
+static FoldStatus foldConstants(OptimizerContext* context, AstNode* node);
+static int evaluateNode(OptimizerContext* context, AstNode* node);
 
-static bool simplifyOperations(OptimizerContext* context, AstNode* node, size_t tree_idx);
-static bool simplifyDispatcher(OptimizerContext* context, AstNode* node, size_t tree_idx);
+static bool simplifyOperations(OptimizerContext* context, AstNode* node);
+static bool simplifyDispatcher(OptimizerContext* context, AstNode* node);
 
-static bool simplifyAdd(OptimizerContext* context, AstNode* node, size_t tree_idx);
-static bool simplifySub(OptimizerContext* context, AstNode* node, size_t tree_idx);
-static bool simplifyMul(OptimizerContext* context, AstNode* node, size_t tree_idx);
-static bool simplifyDiv(OptimizerContext* context, AstNode* node, size_t tree_idx);
-static bool simplifyPow(OptimizerContext* context, AstNode* node, size_t tree_idx);
+static bool simplifyAdd(OptimizerContext* context, AstNode* node);
+static bool simplifySub(OptimizerContext* context, AstNode* node);
+static bool simplifyMul(OptimizerContext* context, AstNode* node);
+static bool simplifyDiv(OptimizerContext* context, AstNode* node);
+static bool simplifyPow(OptimizerContext* context, AstNode* node);
+static bool simplifyNeg(OptimizerContext* context, AstNode* node);
 
-static bool setNodeToChild(OptimizerContext* context, AstNode* node, size_t tree_idx, bool is_left);
+static bool setNodeToChild(OptimizerContext* context, AstNode* node, bool is_left);
 static void replaceWithChild(AstNode* parent, AstNode* child);
-static bool setNodeToNum(OptimizerContext* context, AstNode* node, size_t tree_idx, double num);
-static bool isNum(AstNode* node, double num);
-
-
-typedef bool (*simplifierFunc)(OptimizerContext* context, AstNode* node, size_t tree_idx);
-const simplifierFunc SIMPLIFIERS[OP_MAX_COUNT] = {
-    [OP_ADD] = simplifyAdd,
-    [OP_SUB] = simplifySub,
-    [OP_MUL] = simplifyMul,
-    [OP_DIV] = simplifyDiv,
-    [OP_POW] = simplifyPow
-};
+static bool setNodeToNum(OptimizerContext* context, AstNode* node, int num);
+static bool isNum(AstNode* node, int value);
 
 
 void optimizeTree(OptimizerContext* context)
@@ -51,11 +46,16 @@ void optimizeTree(OptimizerContext* context)
     bool changed = true;
     while (changed) {
         FoldStatus status = foldConstants(context, context->root);
+        if (context->status != STATUS_OK) {
+            return;
+        }
         bool simplified = simplifyOperations(context, context->root);
+        if (context->status != STATUS_OK) {
+            return;
+        }
+
         changed = simplified || status == FOLD_OPTIMIZED;
     }  
-
-    //TREE_DUMP(context, tree_idx, STATUS_OK, "source tree");
 }
 
 
@@ -66,22 +66,70 @@ static FoldStatus foldConstants(OptimizerContext* context, AstNode* node)
     if (!node)
         return FOLD_CONST;
 
-    switch (node->type) {
-        case NODE_OP: {
-            FoldStatus left_res =  foldConstants(context, node->left);
-            FoldStatus right_res = foldConstants(context, node->right);
+    FoldStatus left_res =  foldConstants(context, node->left);
+    FoldStatus right_res = foldConstants(context, node->right);
 
+    switch (node->type) {
+        case AST_NODE_OP_ADD:
+        case AST_NODE_OP_SUB:
+        case AST_NODE_OP_MUL:
+        case AST_NODE_OP_DIV:
+        case AST_NODE_OP_POW:
+        case AST_NODE_OP_NEG: {
             if ((left_res == FOLD_OPTIMIZED || left_res == FOLD_CONST) &&
                 (right_res == FOLD_OPTIMIZED || right_res == FOLD_CONST)) {
-                setNodeToNum(context, node, evaluateNode(context, node));
+                int result = evaluateNode(context, node);
+                if (context->status != STATUS_OK) {
+                    return FOLD_NOT_CONST;
+                }
+
+                setNodeToNum(context, node, result);
                 return FOLD_OPTIMIZED;
             } else {
                 return FOLD_NOT_CONST;
             }
         }
-        case NODE_VAR: return FOLD_NOT_CONST;
-        case NODE_NUM: return FOLD_CONST;
-        default:       return FOLD_NOT_CONST;
+        case AST_NODE_NUMBER: return FOLD_CONST;
+        default:  {
+            if (left_res == FOLD_OPTIMIZED || right_res == FOLD_OPTIMIZED) {
+                return FOLD_OPTIMIZED;
+            }
+            return FOLD_NOT_CONST;
+        }
+    }
+}
+
+
+static int evaluateNode(OptimizerContext* context, AstNode* node)
+{
+    assert(context); assert(node); assert(node->right);
+
+    if (node->type == AST_NODE_OP_NEG) {
+        return -1 * node->right->data.int_value;
+    }
+    
+    assert(node->left);
+    int left = node->left->data.int_value;
+    int right = node->right->data.int_value;
+
+    switch (node->type) {
+        case AST_NODE_OP_ADD: return left + right;
+        case AST_NODE_OP_SUB: return left - right;
+        case AST_NODE_OP_MUL: return left * right;
+        case AST_NODE_OP_DIV: {
+            if (right == 0) {
+                fprintf(stderr, RED("Division error: ") "Division by zero\n");
+                context->status = STATUS_OPTIMIZATION_ERROR;
+                return 0;
+            }
+            return left / right;
+        }
+        case AST_NODE_OP_POW: return (int)pow(left, right);
+        default: {
+            fprintf(stderr, "invalid node type %d in %s\n", node->type, __FUNCTION__);
+            context->status = STATUS_OPTIMIZATION_ERROR;
+            return 0;
+        }
     }
 }
 
@@ -99,9 +147,7 @@ static bool simplifyOperations(OptimizerContext* context, AstNode* node)
         simplifyOperations(context, node->right)) {
         changed = true;
     }
-    if (node->type != NODE_OP) {
-        return changed;
-    }
+
     bool current_changed = simplifyDispatcher(context, node);
 
     return changed || current_changed;
@@ -114,11 +160,11 @@ static bool simplifyDispatcher(OptimizerContext* context, AstNode* node)
 
     switch (node->type) {
         case AST_NODE_OP_ADD: return simplifyAdd(context, node);
-        case AST_NODE_OP_SUB:
-        case AST_NODE_OP_MUL:
-        case AST_NODE_OP_DIV:
-        case AST_NODE_OP_POW:
-        case AST_NODE_OP_NEG:
+        case AST_NODE_OP_SUB: return simplifySub(context, node);
+        case AST_NODE_OP_MUL: return simplifyMul(context, node);
+        case AST_NODE_OP_DIV: return simplifyDiv(context, node);
+        case AST_NODE_OP_POW: return simplifyPow(context, node);
+        case AST_NODE_OP_NEG: return simplifyNeg(context, node);
         default: return false;
     }
 }
@@ -173,6 +219,11 @@ static bool simplifyDiv(OptimizerContext* context, AstNode* node)
 {
     assert(context); assert(node);
 
+    if (ZERO(node->right)) {
+        fprintf(stderr, RED("Division error: ") "Division by zero\n");
+        context->status = STATUS_OPTIMIZATION_ERROR;
+        return false;
+    }
     if (ZERO(node->left)) {
         return setNodeToNum(context, node, 0);
     }
@@ -184,7 +235,7 @@ static bool simplifyDiv(OptimizerContext* context, AstNode* node)
 }
 
 
-static bool simplifyPow(OptimizerContext* context, AstNode* node
+static bool simplifyPow(OptimizerContext* context, AstNode* node)
 {
     assert(context); assert(node);
 
@@ -196,6 +247,19 @@ static bool simplifyPow(OptimizerContext* context, AstNode* node
     }
     if (ONE(node->right)) {
         return setNodeToChild(context, node, true);
+    }
+
+    return false;
+}
+
+static bool simplifyNeg(OptimizerContext* context, AstNode* node)
+{
+    assert(context); assert(node);
+
+    if (node->right->type == AST_NODE_OP_NEG) {
+        setNodeToChild(context, node, false);
+        setNodeToChild(context, node, false);
+        return true;
     }
 
     return false;
@@ -247,4 +311,12 @@ static bool setNodeToNum(OptimizerContext* context, AstNode* node, int num)
     node->data.int_value = num; 
 
     return true;
+}
+
+
+static bool isNum(AstNode* node, int value)
+{
+    assert(node);
+
+    return node->type == AST_NODE_NUMBER && node->data.int_value == value;
 }

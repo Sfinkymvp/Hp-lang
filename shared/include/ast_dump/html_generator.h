@@ -2,14 +2,8 @@
 #define HTML_GENERATOR_H_
 
 
-#include "parser/ast.h"
-
-
-typedef struct {
-    IdentifierTable* id_table;
-    FILE* dump_file;
-    bool simple_visualizer;
-} VisualizerContext;
+#include "ast_shared.h"
+#include "ast_visualizer.h"
 
 
 FILE* openAstDumpFile();

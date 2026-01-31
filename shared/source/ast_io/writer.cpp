@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include "io/writer.h"
-#include "parser/parser.h"
+#include "ast_io/writer.h"
+
 
 
 OperationStatus writeAstTreeToDisk(IdentifierTable* id_table, AstNode* ast_root, const char* output_file)
@@ -31,7 +31,7 @@ void printAstTree(IdentifierTable* id_table, AstNode* node, FILE* file)
     fprintf(file, "(");
 
     if (node->type == AST_NODE_IDENTIFIER) {
-        fprintf(file, "\"%s\"", id_table->identifiers[node->data.id_index]);
+        fprintf(file, "%s", id_table->identifiers[node->data.id_index]);
     } else if (node->type == AST_NODE_NUMBER) {
         fprintf(file, "%d", node->data.int_value);
     } else {

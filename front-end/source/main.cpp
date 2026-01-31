@@ -3,7 +3,7 @@
 #include <assert.h>
 
 #include "io/reader.h"
-#include "io/writer.h"
+#include "ast_io/writer.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "analyzer/analyzer.h"
@@ -75,7 +75,9 @@ int main(const int argc, const char** argv)
         goto cleanup;
     }
 
-    writeAstTreeToDisk(&parser, ast_root);
+    AST_DUMP(&parser, ast_root, "Dump before writing ast tree");
+
+    writeAstTreeToDisk(&parser.id_table, ast_root, parser.args->output_file);
     if (parser.status != STATUS_OK) {
         fprintf(stderr, "Failed to write AST to file\n");
         exit_code = 1;

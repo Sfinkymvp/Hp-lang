@@ -7,7 +7,7 @@
 #include "parser/ast.h"
 
 
-#define CREATE_VIZ(context) ((VisualizerContext){                      \
+#define CREATE_VIZ(context) ((VisualizerContext){                       \
     .id_table = &(context)->id_table,                                   \
     .dump_file = (context)->dump_file,                                  \
     .simple_visualizer = (context)->args->simple_visualizer})

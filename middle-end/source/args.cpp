@@ -3,7 +3,8 @@
 #include <assert.h>
 
 
-#include "lexer/token.h"
+#include "args.h"
+#include "defs.h"
 
 
 static void setTypicalSettings(CmdArgs* args);
@@ -38,7 +39,7 @@ static void setTypicalSettings(CmdArgs* args)
 {
     assert(args);
 
-    args->input_file =  "../../data/test.hp";
+    args->input_file =  "../../data/test.ast";
     args->output_file = "../../data/test.ast";
 }
 

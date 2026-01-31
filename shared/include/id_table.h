@@ -20,6 +20,9 @@ typedef struct {
 OperationStatus createIdentifierTable(IdentifierTable* id_table);
 
 
+OperationStatus addIdentifier(IdentifierTable* id_table, const char* identifier, size_t* id_index);
+
+
 OperationStatus expandIdentifierTable(IdentifierTable* id_table);
 
 

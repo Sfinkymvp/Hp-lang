@@ -2,8 +2,14 @@
 #define AST_VISUALIZER_H_
 
 
-#include "parser/parser.h"
-#include "ast_dump/html_generator.h"
+#include "ast_shared.h"
+
+
+typedef struct {
+    IdentifierTable* id_table;
+    FILE* dump_file;
+    bool simple_visualizer;
+} VisualizerContext;
 
 
 void generateGraph(VisualizerContext* context, AstNode* ast_root, const char* graph_filename);
